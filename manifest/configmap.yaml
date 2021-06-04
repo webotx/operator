@@ -1,0 +1,1015 @@
+# Copyright 2021 NEC Corporation.
+# Use is subject to license terms.
+# Vendor: NEC Corporation.
+# Product: WebOTX Operator for Kubernetes
+# Version: 10.40.00.00
+# 
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: webotx-as-scripts
+data:
+  webotx-init.sh: |
+    #!/bin/bash
+
+    # generation of diagnostic-report
+    REPORT_GENERATE=3
+
+    INSTALL_ROOT=/opt/WebOTX
+    DOMAIN_NAME=`ls -1 ${INSTALL_ROOT}/domains | head -n 1`
+    INSTANCE_ROOT=${INSTALL_ROOT}/domains/${DOMAIN_NAME}
+    DOMAIN_XML=${INSTANCE_ROOT}/config/domain.xml
+
+    mkdir -p ${INSTALL_ROOT}/backups/${DOMAIN_NAME}/logs
+    mkdir -p ${INSTALL_ROOT}/backups/${DOMAIN_NAME}/diagnostic-reports
+
+    exec 1> >(tee -a ${INSTALL_ROOT}/backups/${DOMAIN_NAME}/logs/operator.log)
+    exec 2>&1
+
+    function log() {
+      echo -e "$(date '+%Y-%m-%d %H:%M:%S') $1"
+    }
+
+    trap 'exit 143' 15
+
+    log "INFO Start init script."
+
+    ## Create link of share directory (logs, diagnostic-reports)
+    log "INFO Create link of persistence files."
+
+    if [ -e ${INSTANCE_ROOT}/logs ]; then
+      rm -rf ${INSTANCE_ROOT}/logs
+    fi
+    if [ -e ${INSTANCE_ROOT}/diagnostic-reports ]; then
+      rm -rf ${INSTANCE_ROOT}/diagnostic-reports
+    fi
+
+    ln -s ${INSTALL_ROOT}/backups/${DOMAIN_NAME}/logs ${INSTANCE_ROOT}/logs
+    ln -s ${INSTALL_ROOT}/backups/${DOMAIN_NAME}/diagnostic-reports ${INSTANCE_ROOT}/diagnostic-reports
+    if [ ! -e ${INSTALL_ROOT}/backups/${DOMAIN_NAME}/config ]; then
+      ln -s ${INSTALL_ROOT}/domains/${DOMAIN_NAME}/config ${INSTALL_ROOT}/backups/${DOMAIN_NAME}/config
+    fi
+
+    ## Recovery persistence files
+    ##  Domain setting files 
+    ##      ${INSTANCE_ROOT}/config/TS
+    ##  JMX setting files
+    ##      ${INSTANCE_ROOT}/jmq
+    ##  TP monitor setting files
+    ##      ${INSTALL_ROOT}/Trnsv/multitpm/starter
+    ##      ${INSTALL_ROOT}/Trnsv/conf
+    ##  Session files
+    ##      ${INSTANCE_ROOT}/generated/jsp
+    ##      ${INSTANCE_ROOT}/session-store
+    if [ -e ${INSTALL_ROOT}/backups/persistence-files/webotx-running ]; then
+      rm -rf ${INSTALL_ROOT}/backups/persistence-files/webotx-running
+    fi
+    if echo ${OTX_PERSISTENCE_ENABLED:-true} | grep -iqF true; then
+      if [ -e ${INSTALL_ROOT}/backups/persistence-files/save-complete ]; then
+        log "INFO Copy persistence files from backup."
+        if [ -e ${INSTALL_ROOT}/backups/persistence-files/${DOMAIN_NAME}/config/TS ]; then
+          rm -rf ${INSTANCE_ROOT}/config/TS
+          cp -prf ${INSTALL_ROOT}/backups/persistence-files/${DOMAIN_NAME}/config/TS ${INSTANCE_ROOT}/config
+        fi
+        if [ -e ${INSTALL_ROOT}/backups/persistence-files/${DOMAIN_NAME}/jmq ]; then
+          rm -rf ${INSTANCE_ROOT}/jmq
+          cp -prf ${INSTALL_ROOT}/backups/persistence-files/${DOMAIN_NAME}/jmq ${INSTANCE_ROOT}
+        fi
+        if [ -e ${INSTALL_ROOT}/backups/persistence-files/Trnsv/multitpm/starter ]; then 
+          rm -rf ${INSTALL_ROOT}/Trnsv/multitpm/multitpm
+          cp -prf ${INSTALL_ROOT}/backups/persistence-files/Trnsv/multitpm/starter ${INSTALL_ROOT}/Trnsv/multitpm
+        fi
+        if [ -e ${INSTALL_ROOT}/backups/persistence-files/Trnsv/conf ]; then
+          rm -rf ${INSTALL_ROOT}/Trnsv/conf
+          cp -prf ${INSTALL_ROOT}/backups/persistence-files/Trnsv/conf ${INSTALL_ROOT}/Trnsv
+        fi
+        if [ -e ${INSTALL_ROOT}/backups/persistence-files/${DOMAIN_NAME}/generated/jsp ]; then
+          rm -rf ${INSTANCE_ROOT}/generated/jsp
+          cp -prf ${INSTALL_ROOT}/backups/persistence-files/${DOMAIN_NAME}/generated/jsp ${INSTANCE_ROOT}/generated
+        fi
+        if [ -e ${INSTALL_ROOT}/backups/persistence-files/${DOMAIN_NAME}/session-store ]; then
+          rm -rf ${INSTANCE_ROOT}/session-store
+          cp -prf ${INSTALL_ROOT}/backups/persistence-files/${DOMAIN_NAME}/session-store ${INSTANCE_ROOT}
+        fi
+      fi
+      if [ -e ${INSTALL_ROOT}/backups/persistence-files ]; then
+        rm -rf ${INSTALL_ROOT}/backups/persistence-files
+      fi
+    fi
+
+    ## Delete old diagnostic-report files
+    if [ `ls -1 ${INSTALL_ROOT}/backups/${DOMAIN_NAME}/diagnostic-reports | wc -l` -gt 0 ]; then
+      DEL_GENERATE=`expr ${REPORT_GENERATE} + 1`
+      if [ -e /opt/WebOTX/bin/otxadmin ]; then
+        REPORTS1=`ls -t -1 ${INSTALL_ROOT}/backups/${DOMAIN_NAME}/diagnostic-reports/*.txt | tail -n+${DEL_GENERATE}` 
+        REPORTS2=`ls -t -1 ${INSTALL_ROOT}/backups/${DOMAIN_NAME}/diagnostic-reports/*.zip | tail -n+${DEL_GENERATE}` 
+        REPORTS=`echo $REPORTS1 $REPORTS2`
+      else
+        REPORTS1=`ls -t -1 ${INSTALL_ROOT}/backups/${DOMAIN_NAME}/diagnostic-reports/*.tar.gz | tail -n+${DEL_GENERATE}`
+        REPORTS=`echo $REPORTS1`
+      fi
+    fi
+    if [ -n "${REPORTS}" ]; then
+      log "INFO Delete old diagnostic report files. [${REPORTS}]"
+      rm -v ${REPORTS} 
+    fi
+
+    ## Setting session replication (Standard only)
+    if [ -e /opt/WebOTX/bin/otxadmin ]; then
+      /opt/share.nec/bin/OTXELChk > /dev/null 2>&1
+      AS_LICENSE_CODE=$?
+      if [ "${AS_LICENSE_CODE}" -eq "3" -o "${AS_LICENSE_CODE}" -eq "13" -o "${AS_LICENSE_CODE}" -eq "152" ]; then
+        log "INFO Setting of session replication."
+        if [ -z "${OTX_DATAGRID_TYPE}" ]; then
+          OTX_DATAGRID_TYPE=disabled
+        fi
+        if [ -z "${OTX_USE_JMX_AGENT}" ]; then
+          OTX_USE_JMX_AGENT=false
+        fi
+        if [ -z "${OTX_USE_ALL_PROCESSGROUPS}" ]; then
+          OTX_USE_ALL_PROCESSGROUPS=false
+        fi
+        log "INFO datagrid type is ${OTX_DATAGRID_TYPE}."
+        log "INFO use-jmx-agent is ${OTX_USE_JMX_AGENT}."
+        log "INFO use-all-processgroups is ${OTX_USE_ALL_PROCESSGROUPS}."
+
+        sed -i \
+            -e "s;\(<manager-properties.*\)storage-type=\".*\"\(.*\)$;\1\2;g" \
+            -e "s;\(<manager-properties.*\)datagrid-name=\".*\"\(.*\)$;\1\2;g" \
+            -e "s;\(<data-grids.*\)infinispan-jgroups-file=\".*\"\(.*\)$;\1\2;g" \
+            -e "s;\(<data-grid\).*\( name=\"__default_http_session\"\).*$;\1\2></data-grid>;g" ${DOMAIN_XML}
+
+        if [ $OTX_DATAGRID_TYPE = "infinispan" ]; then
+          grep infinispan-embedded.jar ${INSTALL_ROOT}/features/full-profile-feature.xml || \
+          sed -i \
+            "s;\(</modules>\);    <module location=\"lib/datagrid/infinispan-embedded.jar\" />\n    \1;i" \
+          ${INSTALL_ROOT}/features/full-profile-feature.xml
+
+          sed -i \
+              -e "s;\(<manager-properties\)\(.*$\);\1 storage-type=\"DATAGRID\"\2;g" \
+              -e "s;\(<manager-properties\)\(.*$\);\1 datagrid-name=\"__default_http_session\"\2;g" \
+              -e "s;\(<data-grids\)\(.*$\);\1 infinispan-jgroups-file=\"jgroups-kubernetes.xml\"\2;g" \
+              -e "s;\(<data-grid name=\"__default_http_session\"\)\(.*></data-grid>\);\1 archetype=\"standard\"\2;g" \
+              -e "s;\(<data-grid name=\"__default_http_session\"\)\(.*></data-grid>\);\1 use-jmx-agent=\"${OTX_USE_JMX_AGENT}\"\2;g" \
+              -e "s;\(<data-grid name=\"__default_http_session\"\)\(.*></data-grid>\);\1 use-all-processgroups=\"${OTX_USE_ALL_PROCESSGROUPS}\"\2;g" \
+              -e "s;\(<data-grid name=\"__default_http_session\"\)\(.*></data-grid>\);\1 type=\"${OTX_DATAGRID_TYPE}\"\2;g" ${DOMAIN_XML}
+
+          echo 'JAVA_OPTIONS="$JAVA_OPTIONS -Djava.net.preferIPv4Stack=true"' >> ${INSTALL_ROOT}/config/asenv.conf
+          echo 'export JAVA_OPTIONS' >> ${INSTALL_ROOT}/config/asenv.conf
+        else
+          sed -i -e "/lib\/datagrid\/infinispan-embedded.jar$/d" ${INSTALL_ROOT}/features/full-profile-feature.xml
+          sed -i -e "s;\(<data-grids\)\(.*$\);\1 infinispan-jgroups-file=\"jgroups-udp.xml\"\2;g" ${DOMAIN_XML}
+        fi
+      fi
+    fi
+    ## end Setting session replication
+
+    ## start domain
+    if [ -e /opt/WebOTX/bin/otxadmin ]; then
+      log "INFO Execute a startup script for container."
+      /opt/WebOTX/bin/docker/webotx-startup.sh &
+      pid=$!
+    else
+      log "INFO Run ${OTX_UBER_JAR}."
+      java -jar ${OTX_UBER_JAR} --basedir /opt &
+      pid=$!
+    fi
+
+    ## Running check
+    alive=1
+    while [ "$alive" != "0" ]
+    do
+      while [ ! -e ${INSTALL_ROOT}/backups/persistence-files/webotx-running ]
+      do
+        sleep 1
+        ${INSTALL_ROOT}/bin/docker/webotx-healthcheck.sh
+        result=$?
+        if [ $result -eq 0 ]; then
+          mkdir -p ${INSTALL_ROOT}/backups/persistence-files
+          touch ${INSTALL_ROOT}/backups/persistence-files/webotx-running
+        fi
+
+        ps $pid >/dev/null
+        alive=$?
+        if [ "$alive" != "0" ]; then
+          break 2
+        fi
+      done
+
+      ps $pid >/dev/null
+      alive=$?
+      sleep 1
+    done
+    wait $pid
+    rc=$?
+
+    pid=`pgrep -fo "webotx-term.sh"`
+    if [ "$?" != 0 ]; then
+      ## Execute stop script
+      log "INFO Execute a termination script." 
+      exec 1> /dev/null
+      exec 2> /dev/null
+      /opt/WebOTX/bin/docker/webotx-term.sh
+    else
+      pgrep -fo "webotx-term.sh"
+      while [ "$?" = "0" ]
+      do
+        sleep 1
+      done
+    fi
+
+    exit $rc
+
+  webotx-term.sh: |
+    #!/bin/bash
+
+    if [ $$ != `pgrep -fo $0`  ]; then
+      wait `pgrep -fo $0`
+      exit 0
+    fi
+
+    INSTALL_ROOT=/opt/WebOTX
+    DOMAIN_NAME=`ls ${INSTALL_ROOT}/domains`
+    INSTANCE_ROOT=${INSTALL_ROOT}/domains/${DOMAIN_NAME}
+    REPORT_DIR=${INSTALL_ROOT}/backups/${DOMAIN_NAME}/diagnostic-reports
+
+    exec 1> >(tee -a ${INSTALL_ROOT}/backups/${DOMAIN_NAME}/logs/operator.log)
+    exec 2>&1
+    
+    function log() {
+      echo -e "$(date '+%Y-%m-%d %H:%M:%S') $1"
+    }
+    
+    log "INFO Start termination script."
+    
+    if [ -e /opt/WebOTX/bin/otxadmin ]; then
+      ## Generate diagnostic report
+      log "INFO Output diagnostic report."
+      /opt/WebOTX/bin/otxadmin generate-diagnostic-report --local=true ${DOMAIN_NAME}
+
+      ## Stop domain
+      log "INFO Stop the WebOTX domain."
+      if [ -n "${OTX_STOP_TIMEOUT}" ]; then
+        ${INSTALL_ROOT}/bin/otxadmin stop-domain --force --wait_timeout=${OTX_STOP_TIMEOUT} ${DOMAIN_NAME}
+      else
+        ${INSTALL_ROOT}/bin/otxadmin stop-domain --force --wait_timeout=1800 ${DOMAIN_NAME}
+      fi
+    else
+      ## UberJAR process id
+      pid=`cat /opt/WebOTX/domains/domain1/config/appserv_pid`
+
+      ## Generate diagnostic report
+      log "INFO Output diagnostic report."
+      TIME=`date '+%Y-%-m-%-d_%-H-%-M-%-S'`
+      mkdir -p ${REPORT_DIR}/${DOMAIN_NAME}_${TIME}_report/installinfo
+      mkdir -p ${REPORT_DIR}/${DOMAIN_NAME}_${TIME}_report/jvminfo
+      mkdir -p ${REPORT_DIR}/${DOMAIN_NAME}_${TIME}_report/logs
+      mkdir -p ${REPORT_DIR}/${DOMAIN_NAME}_${TIME}_report/osinfo
+
+      # Environment variable
+      file=${REPORT_DIR}/${DOMAIN_NAME}_${TIME}_report/installinfo/env.txt
+      echo "------ Environment variables --------"            >${file}
+      env                                                    >>${file}
+
+      # Java version
+      file=${REPORT_DIR}/${DOMAIN_NAME}_${TIME}_report/jvminfo/jvmversion.txt
+      echo "------ JVM Version -------------------"                              >${file}
+      java -XshowSettings:properties 2>&1 | grep "java.vm.vendor " | echo `cat` >>${file}
+      java -XshowSettings:properties 2>&1 | grep "java.vm.name "   | echo `cat` >>${file}
+      java -XshowSettings:properties 2>&1 | grep "java.version "   | echo `cat` >>${file}
+
+      # Java VM memory
+      file=${REPORT_DIR}/${DOMAIN_NAME}_${TIME}_report/jvminfo/jvmmemory.txt
+      ps $pid >/dev/null
+      alive=$?
+      if [ "$alive" != "0" ]; then
+        echo UberJAR process has already been killed.         >${file}
+      else
+        jstat -gc $pid                                   2>&1 >${file}
+      fi
+
+      # Java VM thread dump
+      file=${REPORT_DIR}/${DOMAIN_NAME}_${TIME}_report/jvminfo/threaddump.txt
+      ps $pid >/dev/null
+      alive=$?
+      if [ "$alive" != "0" ]; then
+        echo UberJAR process has already been killed.         >${file}
+      else
+        for i in `seq 1 3`
+        do
+          jstack $pid                                   2>&1 >>${file}
+          sleep 5
+        done
+      fi
+
+      # logs
+      if [ -e ${INSTANCE_ROOT}/logs ]; then
+        cp -rf ${INSTANCE_ROOT}/logs/* ${REPORT_DIR}/${DOMAIN_NAME}_${TIME}_report/logs
+      fi
+
+      # disk usage
+      file=${REPORT_DIR}/${DOMAIN_NAME}_${TIME}_report/osinfo/osinfo.txt
+      echo "------ Disk usage -------------------"            >${file}
+      df                                                2>&1 >>${file}
+
+      # Create a tar.gz file
+      tar -zcvf ${REPORT_DIR}/${DOMAIN_NAME}_${TIME}_report.tar.gz ${REPORT_DIR}/${DOMAIN_NAME}_${TIME}_report
+      if [ "$?" = "0" ]; then
+        echo "Report File : ${REPORT_DIR}/${DOMAIN_NAME}_${TIME}_report.tar.gz"
+        rm -rf ${REPORT_DIR}/${DOMAIN_NAME}_${TIME}_report
+      fi
+
+      ## Stop domain
+      ps $pid >/dev/null
+      alive=$?
+      if [ "$alive" = "0" ]; then
+        log "INFO Stop the WebOTX domain."
+        kill -s SIGTERM `ps -ef | grep ${OTX_UBER_JAR} | grep -v grep | awk '{print $2}'` >/dev/null
+        i=0;
+        while [ `ps -ef | grep ${OTX_UBER_JAR} | grep -v grep | wc -l` -gt 0 ]
+        do
+          sleep 1
+          if [ $i -gt ${OTX_STOP_TIMEOUT:-1800} ]; then
+            kill -s SIGKILL `ps -ef | grep ${OTX_UBER_JAR} | grep -v grep | awk '{print $2}'` >/dev/null
+            break
+          fi
+          i=`expr $i + 1`
+        done
+      fi
+    fi
+    
+    ## Save persistence files
+    ##   Domain setting files
+    ##      ${INSTANCE_ROOT}/config/TS
+    ##   JMX setting files
+    ##      ${INSTANCE_ROOT}/jmq
+    ##   TP monitor setting files
+    ##      ${INSTALL_ROOT}/Trnsv/multitpm/starter
+    ##      ${INSTALL_ROOT}/Trnsv/conf
+    ##  Session files
+    ##      ${INSTANCE_ROOT}/generated/jsp
+    ##      ${INSTANCE_ROOT}/session-store
+    if echo ${OTX_PERSISTENCE_ENABLED:-true} | grep -iqF true; then
+      if [ -e ${INSTALL_ROOT}/backups/persistence-files/webotx-running ]; then
+        log "INFO Save persistence files."
+        mkdir -p ${INSTALL_ROOT}/backups/persistence-files/${DOMAIN_NAME}/config
+        mkdir -p ${INSTALL_ROOT}/backups/persistence-files/${DOMAIN_NAME}/generated
+        mkdir -p ${INSTALL_ROOT}/backups/persistence-files/Trnsv/multitpm
+
+        if [ -e ${INSTANCE_ROOT}/config/TS ]; then
+          cp -prf ${INSTANCE_ROOT}/config/TS ${INSTALL_ROOT}/backups/persistence-files/${DOMAIN_NAME}/config
+        fi
+        if [ -e ${INSTANCE_ROOT}/jmq ]; then
+          cp -prf ${INSTANCE_ROOT}/jmq ${INSTALL_ROOT}/backups/persistence-files/${DOMAIN_NAME}
+        fi
+        if [ -e ${INSTALL_ROOT}/Trnsv/multitpm/starter ]; then
+          cp -prf ${INSTALL_ROOT}/Trnsv/multitpm/starter ${INSTALL_ROOT}/backups/persistence-files/Trnsv/multitpm
+        fi
+        if [ -e ${INSTALL_ROOT}/Trnsv/conf ]; then
+          cp -prf ${INSTALL_ROOT}/Trnsv/conf ${INSTALL_ROOT}/backups/persistence-files/Trnsv
+        fi
+        if [ -e ${INSTANCE_ROOT}/generated/jsp ]; then
+          cp -prf ${INSTANCE_ROOT}/generated/jsp ${INSTALL_ROOT}/backups/persistence-files/${DOMAIN_NAME}/generated
+        fi
+        if [ -e ${INSTANCE_ROOT}/session-store ]; then
+          cp -prf ${INSTANCE_ROOT}/session-store ${INSTALL_ROOT}/backups/persistence-files/${DOMAIN_NAME}
+        fi
+        touch ${INSTALL_ROOT}/backups/persistence-files/save-complete
+      fi
+    fi
+    log "INFO End termination script."
+    
+    exit 0
+
+  webotx-healthcheck.sh: |
+    #!/bin/bash
+    
+    if [ -e /opt/WebOTX/bin/otxadmin ]; then
+      /opt/WebOTX/bin/otxadmin is-status >/dev/null
+      exit $?
+    else
+      code=`curl -k -LI $OTX_HEALTHCHECK_PROTOCOL://localhost:$OTX_HEALTHCHECK_PORT/health -o /dev/null -w '%{http_code}\n' -s`
+      if [ $code -eq 200 ]; then
+        exit 0
+      else
+        exit 1
+      fi
+    fi
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: webotx-as-logstash-config
+data:
+  logstash-stdout.conf: |
+    filter {
+      mutate {
+        add_field => {
+          "ip" => "${POD_IP:unknown}"
+          "node" => "${WORKER_NODE_NAME:unknown}"
+        }
+      }
+    }
+    
+    output {
+      stdout {}
+    }
+
+  logstash-elasticsearch.conf: |
+    filter {
+      mutate {
+        add_field => {
+          "ip" => "${POD_IP:unknown}"
+          "node" => "${WORKER_NODE_NAME:unknown}"
+        }
+      }
+    }
+    
+    output {
+      elasticsearch{
+        hosts => ["${ELASTICSEARCH_HOST:unknown}:${ELASTICSEARCH_PORT:9200}"]
+        index => "webotx"
+      }
+    }
+
+  webotx.conf: |
+    input {
+      file{
+        path=>["/opt/WebOTX/domains/*/logs/agent.log",
+               "/opt/WebOTX/domains/*/logs/jmq/jmqadmin.log",
+               "/opt/WebOTX/domains/*/logs/jmq/jmqmessage.log",
+               "/opt/WebOTX/domains/*/logs/jmq/jmqpacket.log",
+               "/opt/WebOTX/domains/*/logs/jmq/jmqserver.log",
+               "/opt/WebOTX/domains/*/logs/jmq/jms.log",
+               "/opt/WebOTX/domains/*/logs/jmq/std.log",
+               "/opt/WebOTX/domains/*/logs/jpa/jpa.log",
+               "/opt/WebOTX/domains/*/logs/ObjectBroker/oadj.log",
+               "/opt/WebOTX/domains/*/logs/ObjectBroker/objava.log",
+               "/opt/WebOTX/domains/*/logs/ObjectBroker/ospi.log",
+               "/opt/WebOTX/domains/*/logs/TS/jta.log",
+               "/opt/WebOTX/domains/*/logs/tpsystem/*/*/*_sys.*.log",
+               "/opt/WebOTX/domains/*/logs/tpsystem/*/*/*.*.log",
+               "/opt/WebOTX/domains/*/logs/web/catalina.log",
+               "/opt/WebOTX/domains/*/logs/web/webservice.log"]
+        start_position => "beginning"
+        sincedb_path => "/opt/WebOTX/domains/sincedb"
+        codec => multiline {
+          patterns_dir => ["/usr/share/logstash/config/pattern"]
+          pattern => "^%{L4J2_DATE}"
+          negate => true
+          what => "previous"
+          auto_flush_interval => 10
+        }
+      }
+
+      file{
+        path=>["/opt/WebOTX/domains/*/logs/ObjectBroker/ObLog.log",
+               "/opt/WebOTX/domains/*/logs/ObjectBroker/message.log",
+               "/opt/WebOTX/domains/*/logs/ObjectBroker/namesv.log",
+               "/opt/WebOTX/domains/*/logs/ObjectBroker/oad.log"]
+        start_position => "beginning"
+        sincedb_path => "/opt/WebOTX/domains/sincedb"
+        codec => multiline {
+          patterns_dir => ["/usr/share/logstash/config/pattern"]
+          pattern => "^%{LOG_DATE4}"
+          negate => true
+          what => "previous"
+          auto_flush_interval => 10
+        }
+      }
+
+      file{
+        path=>["/opt/WebOTX/domains/*/logs/tpsystem/ajpbase.log",
+               "/opt/WebOTX/domains/*/logs/tpsystem/iiopbase.log"]
+        start_position => "beginning"
+        sincedb_path => "/opt/WebOTX/domains/sincedb"
+        codec => multiline {
+          patterns_dir => ["/usr/share/logstash/config/pattern"]
+          pattern => "^\[%{GREEDYDATA}\]%{LOG_DATE6}"
+          negate => true
+          what => "previous"
+          auto_flush_interval => 10
+        }
+      }
+
+      file{
+        path=>["/opt/WebOTX/domains/*/logs/operator.log",
+               "/opt/WebOTX/domains/*/logs/server.log",
+               "/opt/WebOTX/domains/*/logs/server_access.log",
+               "/opt/WebOTX/domains/*/logs/diagnostics/*/*/*/report.csv",
+               "/opt/WebOTX/domains/*/logs/diagnostics/*/*/report.csv",
+               "/opt/WebOTX/domains/*/logs/diagnostics/report.csv",
+               "/opt/WebOTX/domains/*/logs/diagnostics/optional-stats.csv",
+               "/opt/WebOTX/domains/*/logs/adminrest_access.log",
+               "/opt/WebOTX/domains/*/logs/manager_access.log",
+               "/opt/WebOTX/domains/*/logs/ObjectBroker/syslog.log",
+               "/opt/WebOTX/domains/*/logs/tpsystem/accesslog/access.ajp.log",
+               "/opt/WebOTX/domains/*/logs/tpsystem/history.act",
+               "/opt/WebOTX/domains/*/logs/tpsystem/sysmsg.trc",
+               "/opt/WebOTX/domains/*/logs/web/access_log",
+               "/opt/WebOTX/domains/*/logs/web/error_log",
+               "/opt/WebOTX/domains/*/logs/web/mod_jk-24.log_*",
+               "/opt/WebOTX/domains/*/logs/web/ssl_request_log"]
+        start_position => "beginning"
+        sincedb_path => "/opt/WebOTX/domains/sincedb"
+      }
+    }
+    
+    filter {
+      if [path] =~ "\/opt\/WebOTX\/domains\/.*\/logs\/agent\.log" {
+        grok {
+          patterns_dir => ["/usr/share/logstash/config/pattern"]
+          match => [
+            "message", "%{AGENT_LOG}"
+          ]
+        }
+      }
+      else if [path] =~ "\/opt\/WebOTX\/domains\/.*\/logs\/server\.log" {
+        grok {
+          patterns_dir => ["/usr/share/logstash/config/pattern"]
+          match => [
+            "message", "%{SERVER_LOG}"
+          ]
+        }
+      }
+      else if [path] =~ "\/opt\/WebOTX\/domains\/.*\/logs\/server_access\.log" {
+        grok {
+          patterns_dir => ["/usr/share/logstash/config/pattern"]
+          match => [
+            "message", "%{SERVER_ACCESS_LOG}",
+            "message", "%{GREEDYDATA}"
+          ]
+        }
+      }
+      else if [path] =~ "\/opt\/WebOTX\/domains\/.*\/logs\/diagnostics\/.*\/.*\/.*\/report\.csv" {
+        if [message] =~ /Date,.+/ {
+          drop { }
+        }
+        grok {
+          patterns_dir => ["/usr/share/logstash/config/pattern"]
+          match => [
+            "message", "%{DIAGNOSTIC_REPORT_PID_LOG}",
+            "message", "%{GREEDYDATA}"
+          ]
+        }
+      }
+      else if [path] =~ "\/opt\/WebOTX\/domains\/.*\/logs\/diagnostics\/.*\/.*\/report\.csv" {
+        if [message] =~ /Date,.+/ {
+          drop { }
+        }
+        grok {
+          patterns_dir => ["/usr/share/logstash/config/pattern"]
+          match => [
+            "message", "%{DIAGNOSTIC_REPORT_PG_LOG}",
+            "message", "%{GREEDYDATA}"
+          ]
+        }
+      }
+      else if [path] =~ "\/opt\/WebOTX\/domains\/.*\/logs\/diagnostics\/report\.csv" {
+        if [message] =~ /Date,.+/ {
+          drop { }
+        }
+        grok {
+          patterns_dir => ["/usr/share/logstash/config/pattern"]
+          match => [
+            "message", "%{DIAGNOSTIC_REPORT_LOG}",
+            "message", "%{GREEDYDATA}"
+          ]
+        }
+      }
+      else if [path] =~ "\/opt\/WebOTX\/domains\/.*\/logs\/diagnostics\/optional-stats\.csv" {
+        grok {
+          patterns_dir => ["/usr/share/logstash/config/pattern"]
+          match => [
+            "message", "%{DIAGNOSTIC_OPTIONAL_STAT}",
+            "message", "%{GREEDYDATA}"
+          ]
+        }
+      }
+      else if [path] =~ "\/opt\/WebOTX\/domains\/.*\/logs\/adminrest_access\.log" {
+        grok {
+          patterns_dir => ["/usr/share/logstash/config/pattern"]
+          match => [
+            "message", "%{ADMINREST_ACCESS_LOG}",
+            "message", "%{GREEDYDATA}"
+          ]
+        }
+      }
+      else if [path] =~ "\/opt\/WebOTX\/domains\/.*\/logs\/jmq\/jmqadmin\.log" {
+        grok {
+          patterns_dir => ["/usr/share/logstash/config/pattern"]
+          match => [
+            "message", "%{JMQADMIN_LOG}",
+            "message", "%{GREEDYDATA}"
+          ]
+        }
+      }
+      else if [path] =~ "\/opt\/WebOTX\/domains\/.*\/logs\/jmq\/jmqmessage\.log" {
+        grok {
+          patterns_dir => ["/usr/share/logstash/config/pattern"]
+          match => [
+            "message", "%{JMQMESSAGE_LOG}",
+            "message", "%{GREEDYDATA}"
+          ]
+        }
+      }
+      else if [path] =~ "\/opt\/WebOTX\/domains\/.*\/logs\/jmq\/jmqpacket\.log" {
+        grok {
+          patterns_dir => ["/usr/share/logstash/config/pattern"]
+          match => [
+            "message", "%{JMQPACKET_LOG}",
+            "message", "%{GREEDYDATA}"
+          ]
+        }
+      }
+      else if [path] =~ "\/opt\/WebOTX\/domains\/.*\/logs\/jmq\/jmqserver\.log" {
+        grok {
+          patterns_dir => ["/usr/share/logstash/config/pattern"]
+          match => [
+            "message", "%{JMQSERVER_LOG}",
+            "message", "%{GREEDYDATA}"
+          ]
+        }
+      }
+      else if [path] =~ "\/opt\/WebOTX\/domains\/.*\/logs\/jmq\/jms\.log" {
+        grok {
+          patterns_dir => ["/usr/share/logstash/config/pattern"]
+          match => [
+            "message", "%{JMS_LOG}",
+            "message", "%{GREEDYDATA}"
+          ]
+        }
+      }
+      else if [path] =~ "\/opt\/WebOTX\/domains\/.*\/logs\/jmq\/std\.log" {
+        grok {
+          patterns_dir => ["/usr/share/logstash/config/pattern"]
+          match => [
+            "message", "%{STD_LOG}"
+          ]
+        }
+      }
+      else if [path] =~ "\/opt\/WebOTX\/domains\/.*\/logs\/jpa\/jpa\.log" {
+        grok {
+          patterns_dir => ["/usr/share/logstash/config/pattern"]
+          match => [
+            "message", "%{JPA_LOG}",
+            "message", "%{GREEDYDATA}"
+          ]
+        }
+      }
+      else if [path] =~ "\/opt\/WebOTX\/domains\/.*\/logs\/manager_access\.log" {
+        grok {
+          patterns_dir => ["/usr/share/logstash/config/pattern"]
+          match => [
+            "message", "%{MANAGER_ACCESS_LOG}",
+            "message", "%{GREEDYDATA}"
+          ]
+        }
+      }
+      else if [path] =~ "\/opt\/WebOTX\/domains\/.*\/logs\/ObjectBroker\/ObLog\.log" {
+        grok {
+          patterns_dir => ["/usr/share/logstash/config/pattern"]
+          match => [
+            "message", "%{OBLOG_LOG}",
+            "message", "%{GREEDYDATA}"
+          ]
+        }
+      }
+      else if [path] =~ "\/opt\/WebOTX\/domains\/.*\/logs\/ObjectBroker\/message\.log" {
+        grok {
+          patterns_dir => ["/usr/share/logstash/config/pattern"]
+          match => [
+            "message", "%{MESSAGE_LOG}",
+            "message", "%{GREEDYDATA}"
+          ]
+        }
+      }
+      else if [path] =~ "\/opt\/WebOTX\/domains\/.*\/logs\/ObjectBroker\/namesv\.log" {
+        grok {
+          patterns_dir => ["/usr/share/logstash/config/pattern"]
+          match => [
+            "message", "%{NAMESV_LOG}",
+            "message", "%{GREEDYDATA}"
+          ]
+        }
+      }
+      else if [path] =~ "\/opt\/WebOTX\/domains\/.*\/logs\/ObjectBroker\/oad\.log" {
+        grok {
+          patterns_dir => ["/usr/share/logstash/config/pattern"]
+          match => [
+            "message", "%{OAD_LOG}",
+            "message", "%{GREEDYDATA}"
+          ]
+        }
+      }
+      else if [path] =~ "\/opt\/WebOTX\/domains\/.*\/logs\/ObjectBroker\/oadj\.log" {
+        grok {
+          patterns_dir => ["/usr/share/logstash/config/pattern"]
+          match => [
+            "message", "%{OADJ_LOG}",
+            "message", "%{GREEDYDATA}"
+          ]
+        }
+      }
+      else if [path] =~ "\/opt\/WebOTX\/domains\/.*\/logs\/ObjectBroker\/objava\.log" {
+        grok {
+          patterns_dir => ["/usr/share/logstash/config/pattern"]
+          match => [
+            "message", "%{OBJAVA_LOG}",
+            "message", "%{GREEDYDATA}"
+          ]
+        }
+      }
+      else if [path] =~ "\/opt\/WebOTX\/domains\/.*\/logs\/ObjectBroker\/ospi\.log" {
+        grok {
+          patterns_dir => ["/usr/share/logstash/config/pattern"]
+          match => [
+            "message", "%{OSPI_LOG}",
+            "message", "%{GREEDYDATA}"
+          ]
+        }
+      }
+      else if [path] =~ "\/opt\/WebOTX\/domains\/.*\/logs\/ObjectBroker\/syslog\.log" {
+        grok {
+          patterns_dir => ["/usr/share/logstash/config/pattern"]
+          match => [
+            "message", "%{SYSLOG_LOG}",
+            "message", "%{GREEDYDATA}"
+          ]
+        }
+      }
+      else if [path] =~ "\/opt\/WebOTX\/domains\/.*\/logs\/tpsystem\/.*\/.*\/.*_sys\..*\.log" {
+        grok {
+          patterns_dir => ["/usr/share/logstash/config/pattern"]
+          match => [
+            "message", "%{PROCESSGROUP_SYS_LOG}"
+          ]
+        }
+      }
+      else if [path] =~ "\/opt\/WebOTX\/domains\/.*\/logs\/tpsystem\/.*\/.*\/.*\..*\.log" {
+        grok {
+          patterns_dir => ["/usr/share/logstash/config/pattern"]
+          match => [
+            "message", "%{PROCESSGROUP_LOG}"
+          ]
+        }
+      }
+      else if [path] =~ "\/opt\/WebOTX\/domains\/.*\/logs\/tpsystem\/accesslog\/access\.ajp\.log" {
+        grok {
+          patterns_dir => ["/usr/share/logstash/config/pattern"]
+          match => [
+            "message", "%{ACCESS_AJP_LOG}",
+            "message", "%{GREEDYDATA}"
+          ]
+        }
+      }
+      else if [path] =~ "\/opt\/WebOTX\/domains\/.*\/logs\/tpsystem\/ajpbase\.log" {
+        grok {
+          patterns_dir => ["/usr/share/logstash/config/pattern"]
+          match => [
+            "message", "%{AJPBASE_LOG}",
+            "message", "%{GREEDYDATA}"
+          ]
+        }
+      }
+      else if [path] =~ "\/opt\/WebOTX\/domains\/.*\/logs\/tpsystem\/history\.act" {
+        grok {
+          patterns_dir => ["/usr/share/logstash/config/pattern"]
+          match => [
+            "message", "%{HISTORY_ACT}",
+            "message", "%{GREEDYDATA}"
+          ]
+        }
+      }
+      else if [path] =~ "\/opt\/WebOTX\/domains\/.*\/logs\/tpsystem\/iiopbase\.log" {
+        grok {
+          patterns_dir => ["/usr/share/logstash/config/pattern"]
+          match => [
+            "message", "%{IIOPBASE_LOG}",
+            "message", "%{GREEDYDATA}"
+          ]
+        }
+      }
+      else if [path] =~ "\/opt\/WebOTX\/domains\/.*\/logs\/tpsystem\/sysmsg\.trc" {
+        grok {
+          patterns_dir => ["/usr/share/logstash/config/pattern"]
+          match => [
+            "message", "%{SYSMSG_TRC}",
+            "message", "%{GREEDYDATA}"
+          ]
+        }
+      }
+      else if [path] =~ "\/opt\/WebOTX\/domains\/.*\/logs\/TS\/jta\.log" {
+        grok {
+          patterns_dir => ["/usr/share/logstash/config/pattern"]
+          match => [
+            "message", "%{JTA_LOG}",
+            "message", "%{GREEDYDATA}"
+          ]
+        }
+      }
+      else if [path] =~ "\/opt\/WebOTX\/domains\/.*\/logs\/web\/access_log" {
+        grok {
+          patterns_dir => ["/usr/share/logstash/config/pattern"]
+          match => [
+            "message", "%{WEB_ACCESS_LOG}",
+            "message", "%{GREEDYDATA}"
+          ]
+        }
+      }
+      else if [path] =~ "\/opt\/WebOTX\/domains\/.*\/logs\/web\/catalina\.log" {
+        grok {
+          patterns_dir => ["/usr/share/logstash/config/pattern"]
+          match => [
+            "message", "%{CATALINA_LOG}",
+            "message", "%{GREEDYDATA}"
+          ]
+        }
+      }
+      else if [path] =~ "\/opt\/WebOTX\/domains\/.*\/logs\/web\/error_log" {
+        grok {
+          patterns_dir => ["/usr/share/logstash/config/pattern"]
+          match => [
+            "message", "%{WEB_ERROR_LOG}",
+            "message", "%{GREEDYDATA}"
+          ]
+        }
+      }
+      else if [path] =~ "\/opt\/WebOTX\/domains\/.*\/logs\/web\/mod_jk-24\.log_.*" {
+        grok {
+          patterns_dir => ["/usr/share/logstash/config/pattern"]
+          match => [
+            "message", "%{MOD_JK_24_LOG}",
+            "message", "%{GREEDYDATA}"
+          ]
+        }
+      }
+      else if [path] =~ "\/opt\/WebOTX\/domains\/.*\/logs\/web\/ssl_request_log" {
+        grok {
+          patterns_dir => ["/usr/share/logstash/config/pattern"]
+          match => [
+            "message", "%{SSL_REQUEST_LOG}",
+            "message", "%{GREEDYDATA}"
+          ]
+        }
+      }
+      else if [path] =~ "\/opt\/WebOTX\/domains\/.*\/logs\/web\/webservice\.log" {
+        grok {
+          patterns_dir => ["/usr/share/logstash/config/pattern"]
+          match => [
+            "message", "%{WEBSERVICE_LOG}",
+            "message", "%{GREEDYDATA}"
+          ]
+        }
+      }
+    }
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: webotx-as-logstash-pattern
+data:
+  pattern: |
+    ## WebOTX grok pattern file.
+
+    # Common pattern.
+    NULLABLE_NUMBER (%{NUMBER}|-)
+    IP_HOSTNAME     (%{IP}|%{HOSTNAME})
+    DATE            %{MONTHDAY}/%{MONTH}/%{YEAR}
+    DATETIME        %{DATE}:%{TIME}
+    FULL_DATETIME   %{DATETIME} %{INT}
+    MILLISECOND     (\d){3,6}
+    L4J2_DATE       %{YEAR}-%{MONTHNUM}-%{MONTHDAY} %{HOUR}:%{MINUTE}:%{SECOND},%{MILLISECOND}
+    LOG_DATE1       %{YEAR}/%{MONTHNUM}/%{MONTHDAY} %{HOUR}:%{MINUTE}:%{SECOND}.%{MILLISECOND}
+    LOG_DATE2       %{YEAR}-%{MONTHNUM}-%{MONTHDAY} %{HOUR}:%{MINUTE}:%{SECOND}.%{MILLISECOND}
+    LOG_DATE3       %{YEAR}-%{MONTHNUM}-%{MONTHDAY} %{HOUR}:%{MINUTE}:%{SECOND}
+    LOG_DATE4       %{DAY} %{MONTH} ([\s0-3][0-9]) %{HOUR}:%{MINUTE}:%{SECOND} %{YEAR}
+    LOG_DATE5       %{DAY} %{MONTH} ([\s0-3][0-9]) %{HOUR}:%{MINUTE}:%{SECOND} %{TZ} %{YEAR}
+    LOG_DATE6       %{DAY} %{MONTH} ([\s0-3][0-9]) %{HOUR}:%{MINUTE}:%{SECOND}.%{MILLISECOND}
+    LOG_DATE7       (%{LOG_DATE1}|%{LOG_DATE2})
+    AS_LOGLEVEL     (ERROR|WARN|SLOGINFO|INFO|CONFIG|DEBUG|DETAIL|TRACE)
+    OTHER_LOGLEVEL  (%{AS_LOGLEVEL}|%{LOGLEVEL}|[\w\s\*]*)
+    NULLABLE_USER   (%{USER}|-)
+    HTTP_METHOD     (OPTIONS|GET|HEAD|POST|PUT|DELETE|TRACE|CONNECT|PRI)
+    URI_STRING      [:/?#@$&'()*+,;=a-zA-Z0-9.~_%\[\]\-]+
+    HTTP_VERSION    HTTP/%{NUMBER:httpversion}
+    QUERY_STRING    (\?%{URI_STRING:querystring})?
+
+
+    # Log file specific pattern.
+
+    # <INSTANCE_ROOT>/logs/agent.log
+    AGENT_LOG              ^%{L4J2_DATE:timestamp} %{AS_LOGLEVEL:level}\s*%{NOTSPACE}\s*- %{GREEDYDATA} \[%{GREEDYDATA}\]%{GREEDYDATA}
+
+    # <INSTANCE_ROOT>/logs/server.log
+    SERVER_LOG             ^%{L4J2_DATE:timestamp} - %{GREEDYDATA} \[%{GREEDYDATA}\]
+
+    # <INSTANCE_ROOT>/logs/server_access.log
+    SERVER_ACCESS_LOG      ^%{IP} %{NULLABLE_USER} %{NULLABLE_USER} \[%{FULL_DATETIME:timestamp}\] \"%{GREEDYDATA}\" %{NULLABLE_NUMBER} %{NULLABLE_NUMBER} %{NUMBER}
+
+    # <INSTANCE_ROOT>/logs/diagnostics/report.csv
+    DIAGNOSTIC_REPORT_LOG  %{LOG_DATE7:timestamp},%{NUMBER},%{NUMBER},%{NUMBER},%{NUMBER},%{NUMBER},%{NUMBER},%{NUMBER},%{NUMBER},%{NUMBER},%{NUMBER}
+
+    # <INSTANCE_ROOT>/logs/diagnostics/<apgname>/<pgname>/report.csv
+    DIAGNOSTIC_REPORT_PG_LOG   ^%{LOG_DATE7:timestamp},%{NUMBER},%{NUMBER},%{NUMBER},%{NUMBER},%{NUMBER}
+    
+    # <INSTANCE_ROOT>/logs/diagnostics/<apgname>/<pgname>/<pid>/report.csv
+    DIAGNOSTIC_REPORT_PID_LOG  ^%{LOG_DATE7:timestamp},%{NUMBER}
+
+    # <INSTANCE_ROOT>/logs/diagnostics/optional-stats.csv
+    DIAGNOSTIC_OPTIONAL_STAT   ^%{LOG_DATE7:timestamp},%{GREEDYDATA}
+    
+    # <INSTANCE_ROOT>/logs/adminrest_access.log
+    ADMINREST_ACCESS_LOG   ^%{IP} %{NULLABLE_USER} %{NULLABLE_USER} \[%{FULL_DATETIME:timestamp}\] \"%{HTTP_METHOD} %{URI_STRING} %{QUERY_STRING} %{HTTP_VERSION}\" %{NULLABLE_NUMBER} %{NULLABLE_NUMBER} %{NUMBER}
+
+    # <INSTANCE_ROOT>/logs/jmq/jmqadmin.log
+    JMQADMIN_LOG           ^%{L4J2_DATE:timestamp} \[%{OTHER_LOGLEVEL:level}\]%{GREEDYDATA}
+
+    # <INSTANCE_ROOT>/logs/jmq/jmqmessage.log
+    JMQMESSAGE_LOG         ^%{L4J2_DATE:timestamp} \[%{OTHER_LOGLEVEL:level}\]%{GREEDYDATA}
+
+    # <INSTANCE_ROOT>/logs/jmq/jmqpacket.log
+    JMQPACKET_LOG          ^%{L4J2_DATE:timestamp} \[%{OTHER_LOGLEVEL:level}\]%{GREEDYDATA}
+
+    # <INSTANCE_ROOT>/logs/jmq/jmqserver.log
+    JMQSERVER_LOG          ^%{L4J2_DATE:timestamp} \[%{OTHER_LOGLEVEL:level}\]%{GREEDYDATA}
+
+    # <INSTANCE_ROOT>/logs/jmq/jms.log
+    JMS_LOG                ^%{L4J2_DATE:timestamp} %{AS_LOGLEVEL:level}\s*%{NOTSPACE}\s*- %{GREEDYDATA} \[%{GREEDYDATA}\]%{GREEDYDATA}
+
+    # <INSTANCE_ROOT>/logs/jmq/std.log
+    STD_LOG                (^%{L4J2_DATE:timestamp}%{GREEDYDATA}|^%{LOG_DATE2:timestamp}%{GREEDYDATA}|^%{LOG_DATE3:timestamp}%{GREEDYDATA}|^%{LOG_DATE4:timestamp}%{GREEDYDATA}|^%{LOG_DATE5:timestamp}%{GREEDYDATA})
+
+    # <INSTANCE_ROOT>/logs/jpa/jpa.log
+    JPA_LOG                ^%{L4J2_DATE:timestamp} %{AS_LOGLEVEL:level}\s*%{NOTSPACE}\s*- %{GREEDYDATA} \[%{GREEDYDATA}\]%{GREEDYDATA}
+
+    # <INSTANCE_ROOT>/logs/manager_access.log
+    MANAGER_ACCESS_LOG     ^%{IP} %{NULLABLE_USER} %{NULLABLE_USER} \[%{FULL_DATETIME:timestamp}\] \"%{GREEDYDATA}\" %{NULLABLE_NUMBER} %{NULLABLE_NUMBER} %{NUMBER}
+
+    # <INSTANCE_ROOT>/logs/ObjectBroker/ObLog.log
+    OBLOG_LOG              ^%{LOG_DATE4:timestamp}(?:\s%{OTHER_LOGLEVEL:level}:|:pid=(?:[0-9]*):tid=(?:[0-9]*):%{OTHER_LOGLEVEL:level}:)%{GREEDYDATA}
+
+    # <INSTANCE_ROOT>/logs/ObjectBroker/message.log
+    MESSAGE_LOG            ^%{LOG_DATE4:timestamp}%{GREEDYDATA}
+
+    # <INSTANCE_ROOT>/logs/ObjectBroker/namesv.log
+    NAMESV_LOG             ^%{LOG_DATE4:timestamp}(?:\s%{OTHER_LOGLEVEL:level}:|:pid=(?:[0-9]*):tid=(?:[0-9]*):%{OTHER_LOGLEVEL:level}:)%{GREEDYDATA}
+
+    # <INSTANCE_ROOT>/logs/ObjectBroker/oad.log
+    OAD_LOG                ^%{LOG_DATE4:timestamp}(?:\s%{OTHER_LOGLEVEL:level}:|:pid=(?:[0-9]*):tid=(?:[0-9]*):%{OTHER_LOGLEVEL:level}:)%{GREEDYDATA}
+
+    # <INSTANCE_ROOT>/logs/ObjectBroker/oadj.log
+    OADJ_LOG               ^%{L4J2_DATE:timestamp} %{OTHER_LOGLEVEL:level}:%{GREEDYDATA}
+
+    # <INSTANCE_ROOT>/logs/ObjectBroker/objava.log
+    OBJAVA_LOG             ^%{L4J2_DATE:timestamp} %{AS_LOGLEVEL:level}\s*%{NOTSPACE}\s*- %{GREEDYDATA} \[%{GREEDYDATA}\]%{GREEDYDATA}
+
+    # <INSTANCE_ROOT>/logs/ObjectBroker/ospi.log
+    OSPI_LOG               ^%{L4J2_DATE:timestamp} %{AS_LOGLEVEL:level}\s*%{NOTSPACE}\s*- %{GREEDYDATA} \[%{GREEDYDATA}\]%{GREEDYDATA}
+
+    # <INSTANCE_ROOT>/logs/ObjectBroker/syslog.log
+    SYSLOG_LOG             ^%{LOG_DATE4:timestamp} %{NOTSPACE} %{NOTSPACE}:\s?%{OTHER_LOGLEVEL:level}:%{GREEDYDATA}
+
+    # <INSTANCE_ROOT>/logs/tpsystem/<apgname>/<pgname>/<pgname>_sys.<pid>.log
+    PROCESSGROUP_SYS_LOG   ^%{L4J2_DATE:timestamp} %{GREEDYDATA}
+
+    # <INSTANCE_ROOT>/logs/tpsystem/<apgname>/<pgname>/<pgname>.<pid>.log
+    PROCESSGROUP_LOG       ^%{L4J2_DATE:timestamp} %{AS_LOGLEVEL:level}\s*- %{GREEDYDATA} \[%{GREEDYDATA}\]%{GREEDYDATA}
+
+    # <INSTANCE_ROOT>/logs/tpsystem/accesslog/access.ajp.log
+    ACCESS_AJP_LOG         ^%{IP} \[%{FULL_DATETIME:timestamp}\] \"%{GREEDYDATA}\" %{NULLABLE_NUMBER} %{NULLABLE_NUMBER} %{NUMBER}
+
+    # <INSTANCE_ROOT>/logs/tpsystem/ajpbase.log
+    AJPBASE_LOG            ^\[%{GREEDYDATA}\]%{LOG_DATE6:timestamp}\s?%{GREEDYDATA}
+
+    # <INSTANCE_ROOT>/logs/tpsystem/history.act
+    HISTORY_ACT            ^%{LOG_DATE4:timestamp} %{GREEDYDATA}
+
+    # <INSTANCE_ROOT>/logs/tpsystem/iiopbase.log
+    IIOPBASE_LOG           ^\[%{GREEDYDATA}\]%{LOG_DATE6:timestamp}\s?%{GREEDYDATA}
+
+    # <INSTANCE_ROOT>/logs/tpsystem/sysmsg.trc
+    SYSMSG_TRC             ^%{LOG_DATE4:timestamp} %{GREEDYDATA}
+
+    # <INSTANCE_ROOT>/logs/TS/jta.log
+    JTA_LOG                ^%{L4J2_DATE:timestamp} %{AS_LOGLEVEL:level}\s*%{NOTSPACE}\s*- %{GREEDYDATA} \[%{GREEDYDATA}\]%{GREEDYDATA}
+
+    # <INSTANCE_ROOT>/logs/web/access_log
+    WEB_ACCESS_LOG         ^%{IP} %{NULLABLE_USER} %{NULLABLE_USER} %{LOG_DATE3:timestamp} \"%{GREEDYDATA}\" %{NULLABLE_NUMBER} %{NULLABLE_NUMBER} %{NUMBER}
+
+    # <INSTANCE_ROOT>/logs/web/catalina.log
+    CATALINA_LOG           ^%{L4J2_DATE:timestamp} %{AS_LOGLEVEL:level}\s*%{NOTSPACE}\s*- %{GREEDYDATA} \[%{GREEDYDATA}\]%{GREEDYDATA}
+
+    # <INSTANCE_ROOT>/logs/web/error_log
+    WEB_ERROR_LOG          ^\[%{LOG_DATE2:timestamp}\] \[%{GREEDYDATA}:%{GREEDYDATA:level}\] \[pid %{GREEDYDATA}:tid %{GREEDYDATA}\] %{GREEDYDATA}
+
+    # <INSTANCE_ROOT>/logs/web/mod_jk-24.log
+    MOD_JK_24_LOG          ^\[%{LOG_DATE4:timestamp}\] \[%{GREEDYDATA}:%{GREEDYDATA}\] \[%{OTHER_LOGLEVEL:level}\] %{GREEDYDATA}
+
+    # <INSTANCE_ROOT>/logs/web/ssl_request_log
+    SSL_REQUEST_LOG        ^%{LOG_DATE3:timestamp} %{IPORHOST} %{NOTSPACE} %{NOTSPACE} %{GREEDYDATA}
+
+    # <INSTANCE_ROOT>/logs/web/webservice.log
+    WEBSERVICE_LOG         ^%{L4J2_DATE:timestamp} %{AS_LOGLEVEL:level}\s*%{NOTSPACE}\s*- %{GREEDYDATA} \[%{GREEDYDATA}\]%{GREEDYDATA}
+

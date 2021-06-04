@@ -1,0 +1,420 @@
+# Copyright 2021 NEC Corporation.
+# Use is subject to license terms.
+# Vendor: NEC Corporation.
+# Product: WebOTX Operator for Kubernetes
+# Version: 10.40.00.00
+# 
+apiVersion: apiextensions.k8s.io/v1beta1
+kind: CustomResourceDefinition
+metadata:
+  name: applicationservers.webotx.nec.com
+spec:
+  group: webotx.nec.com
+  names:
+    kind: ApplicationServer
+    listKind: ApplicationServerList
+    plural: applicationservers
+    singular: applicationserver
+  scope: Namespaced
+  subresources:
+    status: {}
+  validation:
+    openAPIV3Schema:
+      properties:
+        apiVersion:
+          description: 'APIVersion defines the versioned schema of this representation
+            of an object. Servers should convert recognized schemas to the latest
+            internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#resources'
+          type: string
+        kind:
+          description: 'Kind is a string value representing the REST resource this
+            object represents. Servers may infer this from the endpoint the client
+            submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#types-kinds'
+          type: string
+        metadata:
+          type: object
+        spec:
+          properties:
+            common:
+              description: Common Settings for each manifest registration.
+              properties:
+                labels:
+                  additionalProperties:
+                    type: string
+                  description: Set labels to be assigned to Deployment, Pod, and Service.
+                  type: object
+              type: object
+            deployment:
+              description: Settings for Deployment manifest registration.
+              properties:
+                annotations:
+                  additionalProperties:
+                    type: string
+                  description: Set the annotation to be given to the pod.
+                  type: object
+                automountServiceAccountToken:
+                  description: Sets whether to mount the service account token in
+                    the container.
+                  type: boolean
+                dns:
+                  description: Set the items related to DNS of the pod.
+                  properties:
+                    dnsConfig:
+                      description: Set the DNS Configration.
+                      type: object
+                    dnsPolicy:
+                      description: Set policies for DNS configuration of pods.
+                      type: string
+                  type: object
+                hostAliases:
+                  description: Set a list of IP addresses and domain names to be added
+                    to the hosts file in the container.
+                  items:
+                    type: object
+                  type: array
+                hostname:
+                  description: Set the hostname of the Pod.
+                  type: string
+                image:
+                  description: Set the docker image name of WebOTX AS.
+                  type: string
+                imagePullPolicy:
+                  description: Set the policy for acquiring the container image of
+                    WebOTX AS. One of Always, Never, IfNotPresent. Defaults to IfNotPresent.
+                  type: string
+                imagePullSecrets:
+                  description: Set a list of Secret names that have registered the
+                    authentication information required to acquire images from Docker
+                    private registry.
+                  items:
+                    type: object
+                  type: array
+                livenessProbe:
+                  description: Set items related to ReadinessProbe of each container.
+                  properties:
+                    logstash:
+                      description: Set items related to ReadinessProbe of Logstash
+                        container.
+                      type: object
+                    webotx:
+                      description: Set items related to ReadinessProbe of WebOTX AS
+                        container.
+                      type: object
+                  type: object
+                logstash:
+                  description: Set items related to Logstash settings.
+                  properties:
+                    elasticsearch:
+                      description: Set items related to Elasticsearch.
+                      properties:
+                        host:
+                          description: Set the host name or IP address of Elasticsearch.
+                          type: string
+                        port:
+                          description: Set the Elasticsearch port number.
+                          format: int32
+                          maximum: 65535
+                          minimum: 1
+                          type: integer
+                      type: object
+                  type: object
+                nodeSelector:
+                  additionalProperties:
+                    type: string
+                  description: Set the label to be used as the condition for selecting
+                    the node to schedule the pod.
+                  type: object
+                progressDeadlineSeconds:
+                  description: Set the maximum processing time of Deployment process.
+                  format: int32
+                  maximum: 2147483647
+                  minimum: 1
+                  type: integer
+                readinessProbe:
+                  description: Set items related to ReadinessProbe of each container.
+                  properties:
+                    logstash:
+                      description: Set items related to ReadinessProbe of Logstash
+                        container.
+                      type: object
+                    webotx:
+                      description: Set items related to ReadinessProbe of WebOTX AS
+                        container.
+                      type: object
+                  type: object
+                replicas:
+                  description: Set the pod multiplicity of the WebOTX AS to be deployed.
+                  format: int32
+                  maximum: 2147483647
+                  minimum: 1
+                  type: integer
+                resources:
+                  description: Set items related to resources of each container.
+                  properties:
+                    logstash:
+                      description: Set items related to resources of Logstash container.
+                      type: object
+                    webotx:
+                      description: Set items related to resources or WebOTX AS container.
+                      type: object
+                  type: object
+                restartPolicy:
+                  description: Restart policy for all containers within the pod. One
+                    of Always, OnFailure, Never. Default to Always.
+                  type: string
+                serviceAccountName:
+                  description: Set the service account name that runs the pod.
+                  type: string
+                strategy:
+                  description: Set items related to updating pods during deployment.
+                  properties:
+                    type:
+                      description: Set the pod update method type.
+                      type: string
+                  type: object
+                subdomain:
+                  description: Set the pod subdomain name. If specified, the fully
+                    qualified Pod hostname will be "<hostname>.<subdomain>.<pod namespace>.svc.<cluster
+                    domain>". If not specified, the pod will not have a domainname
+                    at all.
+                  type: string
+                terminationGracePeriodSeconds:
+                  description: Sets the time (in seconds) between when the pod shutdown
+                    process starts and when SIGKILL is sent.
+                  format: int64
+                  maximum: 2147483647
+                  minimum: 0
+                  type: integer
+                timeZone:
+                  description: Set the time zone of the WebOTX AS container.
+                  type: string
+              required:
+              - replicas
+              - image
+              type: object
+            service:
+              description: Settings for Service manifest registration.
+              properties:
+                externalIPs:
+                  description: Set a list of IP addresses for which nodes in the cluster
+                    will also accept traffic for this service.
+                  items:
+                    type: string
+                  type: array
+                externalTrafficPolicy:
+                  description: Set a policy to load balance traffic that reaches a
+                    node to another node.
+                  type: string
+                loadBalancerIP:
+                  description: 'Only applies to Service Type: LoadBalancer LoadBalancer
+                    will get created with the IP specified in this field.'
+                  type: string
+                loadBalancerSourceRanges:
+                  description: Set a list of connection source IP addresses that are
+                    allowed to access the service. This field will be ignored if the
+                    cloud-provider does not support the feature."
+                  items:
+                    type: string
+                  type: array
+                ports:
+                  description: Set the items related to the public port.
+                  items:
+                    type: object
+                  type: array
+                sessionAffinity:
+                  description: Sets whether to maintain session affinity.
+                  type: string
+                sessionAffinityConfig:
+                  description: Enable client IP based session affinity.
+                  type: object
+                type:
+                  description: Set the service type.
+                  type: string
+              required:
+              - type
+              - ports
+              type: object
+            webotx:
+              description: Settings for WebOTX AS deployment.
+              properties:
+                application:
+                  description: Settings related to the application.
+                  properties:
+                    logs:
+                      description: Set the log file paste to be collected by Logstash.
+                      items:
+                        type: string
+                      type: array
+                  type: object
+                envFrom:
+                  description: Set items to set environment variables from ConfigMap.
+                  properties:
+                    configMaps:
+                      description: Set the name of ConfigMap that defines environment
+                        variables.
+                      items:
+                        type: string
+                      type: array
+                    secrets:
+                      description: Set the name of Secret that defines environment
+                        variables.
+                      items:
+                        type: string
+                      type: array
+                  type: object
+                healthCheck:
+                  description: Settings related to HealthCheck. Set only when using
+                    the UberJAR container image.
+                  properties:
+                    port:
+                      description: Set the port number to be used in MP-HealthCheck
+                        of WebOTX Server.
+                      format: int32
+                      maximum: 65535
+                      minimum: 1
+                      type: integer
+                    scheme:
+                      description: Set the scheme to be used in MP-HealthCheck of
+                        WebOTX Server.
+                      enum:
+                      - http
+                      - https
+                      type: string
+                  required:
+                  - scheme
+                  - port
+                  type: object
+                jaeger:
+                  description: Settings related to Jaeger.
+                  properties:
+                    agentHost:
+                      description: Setting items related to Jaeger. The hostname for
+                        communicating with agent via UDP.
+                      type: string
+                    agentPort:
+                      description: Setting items related to Jaeger. The port for communicating
+                        with agent via UDP.
+                      type: string
+                    authSecret:
+                      description: Setting items related to Jaeger. Secret name that
+                        defines the user name and password to be sent to the endpoint
+                        as part of basic authentication.
+                      properties:
+                        name:
+                          type: string
+                      type: object
+                    authToken:
+                      description: Setting items related to Jaeger. Authentication
+                        Token to send as "Bearer" to the endpoint.
+                      type: string
+                    endpoint:
+                      description: Setting items related to Jaeger. The traces endpoint,
+                        in case the client should connect directly to the Collector,
+                        like http://jaeger-collector:14268/api/traces.
+                      type: string
+                    propagation:
+                      description: Setting items related to Jaeger. Comma separated
+                        list of formats to use for propagating the trace context.
+                        Defaults to the standard Jaeger format. Valid values are jaeger,
+                        b3, and w3c.
+                      enum:
+                      - jaeger
+                      - b3
+                      - w3c
+                      type: string
+                    reporterFlushInterval:
+                      description: Setting items related to Jaeger. The reporter's
+                        flush interval (ms).
+                      type: string
+                    reporterLogSpans:
+                      description: Setting items related to Jaeger. Whether the reporter
+                        should also log the spans.
+                      type: string
+                    reporterMaxQueueSize:
+                      description: Setting items related to Jaeger. The reporter's
+                        maximum queue size.
+                      type: string
+                    samplerManagerHostPort:
+                      description: Setting items related to Jaeger. The host name
+                        and port when using the remote controlled sampler. Specify
+                        in the format of <host_name>:<port_number>.
+                      type: string
+                    samplerParam:
+                      description: Setting items related to Jaeger. The sampler parameter
+                        (number).
+                      type: string
+                    samplerType:
+                      description: Setting items related to Jaeger. The sampler type.
+                      enum:
+                      - const
+                      - probabilistic
+                      - ratelimiting
+                      - remote
+                      type: string
+                    serviceName:
+                      description: Setting items related to Jaeger. The service name.
+                      type: string
+                    tags:
+                      description: Setting items related to Jaeger. A comma separated
+                        list of name = value tracer level tags, which get added to
+                        all reported spans.
+                      type: string
+                  type: object
+                metering:
+                  description: Settings related to metering function.
+                  properties:
+                    enabled:
+                      description: Set to enable Metering.
+                      type: boolean
+                    port:
+                      description: Set the port number when retrieving metrics.
+                      format: int32
+                      maximum: 65535
+                      minimum: 1
+                      type: integer
+                    scheme:
+                      description: Set the URL scheme for retrieving metrics.
+                      enum:
+                      - http
+                      - https
+                      type: string
+                  required:
+                  - enabled
+                  - scheme
+                  - port
+                  type: object
+                sessionReplication:
+                  description: Setting items related to session replication.
+                  properties:
+                    enabled:
+                      description: Enable the session replication function.
+                      type: boolean
+                    useAllProcessGroups:
+                      description: Sets whether the data grid is loaded in all process
+                        groups.
+                      type: boolean
+                    useJmxAgent:
+                      description: Sets whether the data grid is loaded by the agent
+                        process.
+                      type: boolean
+                  required:
+                  - enabled
+                  - useJmxAgent
+                  - useAllProcessGroups
+                  type: object
+              required:
+              - metering
+              - sessionReplication
+              type: object
+          required:
+          - webotx
+          - deployment
+          - service
+          type: object
+        status:
+          type: object
+  version: v2
+  versions:
+  - name: v2
+    served: true
+    storage: true

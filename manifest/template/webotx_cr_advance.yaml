@@ -1,0 +1,372 @@
+# Vendor: NEC Corporation.
+# Product: WebOTX Operator for Kubernetes
+# Version: 10.40.00.00
+# 
+apiVersion: webotx.nec.com/v2
+kind: ApplicationServer
+metadata:
+  # Replace this with the ApplicationServer Object name
+  name: REPLACE_APPLICATIONSERVER_NAME
+spec:
+  # WebOTX related settings
+  webotx:
+    # Settings related to the application.
+    application:
+      # Set the log file paste to be collected by Logstash.
+      logs: 
+        - REPLACE_APPLICATION_LOG_FILE
+
+    # Set the ConfigMap / Secret name that defines the environment 
+    # variables to be set in the container.
+    # optional
+    envFrom:
+      configMaps: 
+        - REPLACE_CONFIGMAP_NAME
+
+      secrets: 
+        - REPLACE_SECRET_NAME
+    
+    # Settings related to HealthCheck. Set only when using
+    # the Uber JAR container image.
+    healthCheck:
+      # Set the port number to be used in MP-HealthCheck of WebOTX Server.
+      port: 8443
+
+      #Set the scheme to be used in MP-HealthCheck of WebOTX Server.
+      scheme: https
+
+    # Define items related to MP-OpenTracing tracer (Jaeger).
+    jaeger:
+      # Setting items related to Jaeger. The service name.
+      serviceName: REPLACE_JAEGER_SERVICE_NAME
+
+      # Setting items related to Jaeger. The hostname for 
+      # communicating with agent via UDP.
+      agentHost: REPLACE_JAEGER_AGENT_HOST
+
+      # Setting items related to Jaeger. The port for communicating 
+      # with agent via UDP.
+      agentPort: REPLACE_JAEGER_AGENT_PORT
+
+      # Setting items related to Jaeger. The traces endpoint, 
+      # in case the client should connect directly to the Collector, 
+      # like http://jaeger-collector:14268/api/traces.
+      endpoint: REPLACE_JAEGER_ENDPOINT
+
+      # Setting items related to Jaeger. Authentication Token to 
+      # send as "Bearer" to the endpoint.
+      authToken: REPLACE_JAEGER_AUTH_TOKEN
+
+      # Setting items related to Jaeger. Secret name that defines 
+      # the user name and password to be sent to the endpoint as part 
+      # of basic authentication.
+      authSecret:
+        name: REPLACE_JAEGER_AUTH_SECRET_NAME
+      
+      # Setting items related to Jaeger. Comma separated list of 
+      # formats to use for propagating the trace context. Defaults 
+      # to the standard Jaeger format. Valid values are jaeger, b3, and w3c.
+      propagation: REPLACE_JAEGER_PROPAGATION
+
+      # Setting items related to Jaeger. Whether the reporter should 
+      # also log the spans.
+      reporterLogSpans: REPLACE_JAEGER_REPORTER_LOG_SPANS
+
+      # Setting items related to Jaeger. The reporter's maximum queue size.
+      reporterMaxQueueSize: REPLACE_JAEGER_REPORTER_MAX_QUEUE_SIZE
+
+      # Setting items related to Jaeger. The reporter's flush interval (ms).
+      reporterFlushInterval: REPLACE_JAEGER_REPORTER_FLUSH_INTERVAL
+
+      # Setting items related to Jaeger. The sampler type.
+      samplerType: REPLACE_JAEGER_SAMPLER_TYPE
+
+      # Setting items related to Jaeger. The sampler parameter (number).
+      samplerParam: REPLACE_JAEGER_SAMPLER_PARAM
+
+      # Setting items related to Jaeger. The host name and port when 
+      # using the remote controlled sampler. Specify in the format of 
+      # <host_name>:<port_number>.
+      samplerManagerHostPort: REPLACE_JAEGER_SAMPLER_MANAGER_HOST_PORT
+
+      # Setting items related to Jaeger. A comma separated list of 
+      # name = value tracer level tags, which get added to all reported 
+      # spans.
+      tags: REPLACE_JAEGER_TAGS
+
+    # Metering related settings
+    metering:
+      # Enable / disable metric collection.
+      enabled: false
+
+      # Set the URL scheme for retrieving metrics.
+      scheme: https
+
+      # Set the port number when retrieving metrics.
+      port: 8443
+
+    # Session replication related settings
+    sessionReplication:
+      # Enable / disable session replication.
+      # optional
+      enabled: false
+
+      # Sets whether the data grid is loaded by the agent process.
+      # optional
+      useJmxAgent: false
+
+      # Set whether the data grid is loaded in all process groups.
+      # optional
+      useAllProcessGroups: false
+
+  # Common settings
+  common:
+    # Setting labels for 'Deployment', 'Pod' and 'Service'.
+    # Sets a string key-value map.
+    # optional
+    labels:
+      REPLACE_LABEL_KEY: REPLACE_LABEL_VALUE
+
+  # Deployment manifest definition settings
+  deployment:
+    # Setting pod multiplicity.
+    replicas: 1
+
+    # WebOTX AS container image name setting.
+    image: REPLACE_WEBOTX_AS_IMAGE
+
+    # Image pull policy.
+    # One of Always, Never, IfNotPresent.
+    # Defaults to IfNotPresent.
+    # optional
+    imagePullPolicy: IfNotPresent
+
+    # Set the Secret name that contains the authentication information used 
+    # when acquiring images from the private registry.
+    # optional
+    imagePullSecrets:
+    - name: REPLACE_SECRET_NAME
+
+    # Specifies the hostname of the Pod.
+    # optional
+    hostName: REPLACE_HOST_NAME
+
+    # Specifies the subdomain name for the pod.
+    # If specified, the fully qualified Pod hostname will be 
+    # "<hostname>.<subdomain>.<pod namespace>.svc.<cluster domain>".
+    # optional
+    subDomain: REPLACE_SUBDOMAIN_NAME
+
+    # Setting annotations for "Pod".
+    # Sets a string key-value map.
+    # optional
+    annotations:
+      REPLACE_ANNOTATION_KEY: REPLACE_ANNOTATION_VALUE
+
+    # Restart policy for all containers within the pod.
+    # One of Always, OnFailure, Never.
+    # Default to Always.
+    # optional
+    restartPolicy: Always
+
+    # Duration in seconds the pod needs to terminate gracefully.
+    # optional
+    terminationGracePeriodSeconds: 1800
+    
+    # The name of the ServiceAccount used to run this pod.
+    # Default to default.
+    # optional
+    serviceAccountName: default
+
+    # Indicates whether the service account token should be automatically
+    # mounted.
+    # optional
+    automountServiceAccountToken: false
+
+    # DNS related settings.
+    # optional
+    dns:
+      # Set DNS policy for the pod.
+      # One of 'ClusterFirstWithHostNet', 'ClusterFirst', 'Default'
+      # or 'None'.
+      # Default to ClusterFirst.
+      dnsPolicy: ClusterFirst
+
+      # Specifies the DNS parameters of a pod.
+      dnsConfig:
+        nameservers:
+        - REPLACE_IP_ADDRESS
+
+        searches:
+        - REPLACE_SEARCH_NAME
+
+        options:
+        - name: REPLACE_DNS_OPTION_NAME
+          value: REPLACE_DNS_OPTION_VALUE
+    
+    # Logstash related settings.
+    # optional
+    logstash:
+      # Settings related to Elasticsearch that sends logs collected
+      # by Logstash.
+      elasticsearch:
+        host: REPLACE_ELASTICSEARCH_HOST
+        port: REPLACE_ELASTICESEARCH_PORT
+
+    # Resources related settings.
+    # optional
+    resources:
+      # Compute Resources required by WebOTX container.
+      webotx:
+        requests:
+          cpu: REPLACE_CPU_REQUEST
+          memory: REPLACE_MEMORY_REQUEST
+        limits:
+          cpu: REPLACE_CPU_LIMIT
+          memory: REPLACE_MEMORY_LIMIT
+
+      # Compute Resources required by Logstash container.
+    # optional
+      logstash:
+        requests:
+          cpu: REPLACE_CPU_REQUEST
+          memory: REPLACE_MEMORY_REQUEST
+        limits:
+          cpu: REPLACE_CPU_LIMIT
+          memory: REPLACE_MEMORY_LIMIT
+
+    # Periodic probe of container service readiness.
+    # optional
+    readinessProbe:
+      webotx:
+        initialDelaySeconds: 0
+        periodSeconds: 10
+        timeoutSeconds: 5
+        successThreshold: 1
+        failureThreshold: 3
+
+        # For exec
+        exec:
+          command:
+          - "REPLACE_PROBE_COMMAND"
+
+        # For httpGet
+        #httpGet:
+        #  host: REPLACE_HOST
+        #  path: REPLACE_PATH
+        #  port: REPLACE_PORT_NUMBER
+        #  scheme: HTTP
+        #  httpHeaders:
+        #  - name: REPLACE_HTTP_HEADER_NAME
+        #    value: REPLACE_HTTP_HEADER_VALUE
+
+        # For tcpSocket
+        #tcpSocket:
+        #  host: REPLACE_HOST
+        #  port: REPLACE_PORT_NUMBER
+
+    # Periodic probe of container liveness.
+    # optional
+    livenessProbe:
+      webotx:
+        initialDelaySeconds: 0
+        periodSeconds: 10
+        timeoutSeconds: 5
+        successThreshold: 1
+        failureThreshold: 3
+
+        # For exec
+        exec:
+          command:
+          - "REPLACE_PROBE_COMMAND"
+
+        # For httpGet
+        #httpGet:
+        #  host: REPLACE_HOST
+        #  path: REPLACE_PATH
+        #  port: REPLACE_PORT_NUMBER
+        #  scheme: HTTP
+        #  httpHeaders:
+        #  - name: REPLACE_HTTP_HEADER_NAME
+        #    value: REPLACE_HTTP_HEADER_VALUE
+
+        # For tcpSocket
+        #tcpSocket:
+        #  host: REPLACE_HOST
+        #  port: REPLACE_PORT_NUMBER
+    
+    # Set the label set for the node where you want to deploy the pod.
+    # optional
+    nodeSelector:
+      REPLACE_LABEL_KEY: REPLACE_LABEL_VALUE
+    
+    # Set the list of hosts and IP addresses to be inserted into the pod's
+    # hosts file.
+    # optional
+    hostAliases:
+    - ip: REPLACE_IP_ADDRESS
+      hostnames:
+      - REPLACE_HOST_NAME
+
+    # The deployment strategy to use to replace existing pods with new ones.
+    # One of Recreate, RollingUpdate.
+    # Default to RollingUpdate.
+    # optional
+    strategy:
+      type: RollingUpdate
+    
+    # the number of seconds the Deployment controller waits before indicating
+    # (in the Deployment status) that the Deployment progress has stalled.
+    # optional
+    progressDeadlineSeconds: 600
+
+    # Set the time zone in the container.
+    # This value is set to the WebOTX container environment variable 'TZ'.
+    # For example, set "UTC", "America/New_York", "Asia/Tokyo", etc.
+    # optional
+    timeZone: UTC
+
+  # Service manifest definition settings
+  service:
+    # type determines how the Service is exposed.
+    # One of ClusterIP, NodePort, and LoadBalancer.
+    type: REPLACE_SERVICE_TYPE
+
+    # The list of ports that are exposed by this service.
+    ports:
+    - name: REPLACE_PORT_NAME
+      protocol: REPLACE_PROTOCOL
+      targetPort: REPLACE_TARGET_PORT_NUMBER
+      port: REPLACE_PORT_NUMBER
+      nodePort: REPLACE_NODE_PORT_NUMBER
+
+    # Used to maintain session affinity.
+    # One of ClientIP, None.
+    # optional
+    sessionAffinity: REPLACE_SESSIONAFFINITY
+
+    # the configurations of session affinity.
+    sessionAffinityConfig:
+      clientIP:
+        timeoutSeconds: REPLACE_TIMEOUOT_SECONDS
+
+    # externalIPs is a list of IP addresses for which nodes in the cluster will also
+    # accept traffic for this service.
+    externalIPs:
+    - REPLACE_NODE_IP_ADDRESS
+
+    # Only applies to Service Type: LoadBalancer
+    # LoadBalancer will get created with the IP specified in this field.
+    # optional
+    loadBalancerIP: REPLACE_LOADBALANCER_IP
+
+    # If specified and supported by the platform, this will restrict traffic through 
+    # the cloud-provider load-balancer will be restricted to the specified client IPs. 
+    # This field will be ignored if the cloud-provider does not support the feature."
+    loadBalancerSourceRanges:
+    - REPLACE_IP_ADDRESS
+
+    # externalTrafficPolicy denotes if this Service desires to route external traffic 
+    # to node-local or cluster-wide endpoints.
+    # optional
+    externalTrafficPolicy: REPLACE_EXTERNAL_TRAFFIC_POLICY

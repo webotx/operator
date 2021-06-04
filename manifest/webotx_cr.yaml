@@ -1,0 +1,62 @@
+# Vendor: NEC Corporation.
+# Product: WebOTX Operator for Kubernetes
+# Version: 10.40.00.00
+# 
+apiVersion: webotx.nec.com/v2
+kind: ApplicationServer
+metadata:
+  # Replace this with the ApplicationServer Object name
+  name: REPLACE_APPLICATIONSERVER_NAME
+spec:
+  # WebOTX related settings
+  webotx:
+    # Metering related settings
+    metering:
+      # Enable / disable metric collection.
+      enabled: false
+
+      # Set the URL scheme for retrieving metrics.
+      scheme: https
+
+      # Set the port number when retrieving metrics.
+      port: 8443
+
+    # Session replication related settings
+    sessionReplication:
+      # Enable / disable session replication.
+      enabled: false
+
+      # Sets whether the data grid is loaded by the agent process.
+      useJmxAgent: false
+
+      # Set whether the data grid is loaded in all process groups.
+      useAllProcessGroups: false
+
+  # Deployment manifest definition settings
+  deployment:
+    # Setting pod multiplicity.
+    replicas: 1
+
+    # WebOTX AS container image name setting.
+    image: REPLACE_WEBOTX_AS_IMAGE
+
+  # Service manifest definition settings
+  service:
+    # Configure NodePort service.
+    type: NodePort
+    ports:
+    - name: http
+      protocol: TCP
+      targetPort: 8080
+      port: 8080
+      nodePort: 30080
+    - name: https
+      protocol: TCP
+      targetPort: 8443
+      port: 8443
+      nodePort: 30443
+    sessionAffinity: ClientIP
+    sessionAffinityConfig:
+      clientIP:
+        timeoutSeconds: 10800
+    externalTrafficPolicy: Cluster
