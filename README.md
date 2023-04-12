@@ -4,10 +4,12 @@ WebOTX Operator for Kubernetes は、コンテナオーケストレーション�
 
 ## 動作環境
 
-|ソフトウェア|動作バージョン|
-|---|---|
-|Kubernetes|1.14～1.18|
-|OpenShift|4.2, 4.4, 4.5|
+以下のバージョンで動作確認を行っています。
+
+| ソフトウェア | 動作バージョン |
+| ------------ | -------------- |
+| Kubernetes   | 1.23           |
+| OpenShift    | 4.10           |
 
 ## クイックスタート
 
@@ -26,7 +28,7 @@ Kubernetes にカスタムリソース定義(CRD)を登録します。
 $ kubectl apply -f manifest/webotx_crd.yaml
 ```
 
-**注意:** カスタムリソース定義は、全ての Namespace に適用されます。
+**注意:** カスタムリソース定義は、すべての Namespace に適用されます。
 このため、Kubernetes への登録は 1 回のみ適用します。
 
 **サービスアカウント・権限の登録**  
@@ -44,10 +46,10 @@ $ kubectl apply -f manifest/configmap.yaml -n <Namespace名>
 **manifest/operator.yaml の編集**  
 manifest/operator.yaml ファイル内の下記の編集項目を修正します。
 
-| 編集項目                        | 内容                              |
-|--------------------------------|-----------------------------------|
-| REPLACE_WEBOTX_OPERATOR_IMAGE  | WebOTX Operator コンテナイメージ名  |
-| REPLACE_LICENSE_KEY            | WebOTX Operator ライセンスキー     |
+|           編集項目            |                内容                |
+| ----------------------------- | ---------------------------------- |
+| REPLACE_WEBOTX_OPERATOR_IMAGE | WebOTX Operator コンテナイメージ名 |
+| REPLACE_LICENSE_KEY           | WebOTX Operator ライセンスキー     |
 
 **WebOTX Operator の展開**  
 Kubernetes 上に WebOTX Operator を展開します。
@@ -73,16 +75,16 @@ webotx-operator-684c7976cc-vxw4j   1/1     Running   0          14s
 **manifest/webotx_cr.yaml の編集**  
 manifest/webotx_cr.yaml ファイル内の下記の編集項目を修正します。
 
-| 編集項目　                      | 内容　　　                                    |
-|--------------------------------|----------------------------------------------|
-| REPLACE_APPLICATIONSERVER_NAME | 任意のカスタムリソース名                       |
-| REPLACE_WEBOTX_AS_IMAGE        | WebOTX Application Server コンテナイメージ名   |
+|            編集項目            |                     内容                     |
+| ------------------------------ | -------------------------------------------- |
+| REPLACE_APPLICATIONSERVER_NAME | 任意のカスタムリソース名                     |
+| REPLACE_WEBOTX_AS_IMAGE        | WebOTX Application Server コンテナイメージ名 |
 
 **カスタムリソースの登録**  
 カスタムリソースを登録して、Kubernetes 上に WebOTX Application Server を展開します。
 展開が完了するまで時間が掛かります。
 ```
-kubectl apply -f manifest/webotx_cr.yaml -n <Namespace名>
+$ kubectl apply -f manifest/webotx_cr.yaml -n <Namespace名>
 ```
 
 **WebOTX Application Server の確認**  
@@ -103,7 +105,7 @@ webotx-as-6bf7569998-dvs9f         2/2     Running   0          97m
 登録しているカスタムリソースを削除します。
 削除が完了するまで時間が掛かります。
 ```
-kubectl delete ApplicationServer <カスタムリソース名> -n <Namespace名>
+$ kubectl delete ApplicationServer <カスタムリソース名> -n <Namespace名>
 ```
 
 **WebOTX Application Server の確認**  
@@ -117,20 +119,20 @@ $ kubectl get pod -n <Namespace名>
 **WebOTX Operator の削除**  
 展開している WebOTX Operator を削除します。
 ```
-kubectl delete -f manifest/operator.yaml -n <Namespace名>
-kubectl delete -f manifest/service_account.yaml -n <Namespace名>
+$ kubectl delete -f manifest/operator.yaml -n <Namespace名>
+$ kubectl delete -f manifest/service_account.yaml -n <Namespace名>
 ```
 
 **ConfigMap の削除**  
 登録している ConfigMap を削除します。
 ```
-kubectl delete -f manifest/configmap.yaml -n <Namespace名>
+$ kubectl delete -f manifest/configmap.yaml -n <Namespace名>
 ```
 
 **カスタムリソース定義(CRD)の削除**  
 登録しているカスタムリソース定義(CRD)を削除します。
 ```
-kubectl delete -f manifest/webotx_crd.yaml
+$ kubectl delete -f manifest/webotx_crd.yaml
 ```
 
 ---
