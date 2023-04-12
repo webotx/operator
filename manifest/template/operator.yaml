@@ -1,7 +1,157 @@
 # Vendor: NEC Corporation.
 # Product: WebOTX Operator for Kubernetes
-# Version: 10.40.00.00
+# Version: 11.10.00.00
 # 
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: webotx-operator-controller-manager
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  creationTimestamp: null
+  name: webotx-operator-manager-role
+rules:
+- apiGroups:
+  - apps
+  resources:
+  - daemonsets
+  - deployments
+  - replicasets
+  - statefulsets
+  verbs:
+  - '*'
+- apiGroups:
+  - apps
+  resourceNames:
+  - webotx-operator
+  resources:
+  - deployments/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - apps
+  resources:
+  - replicasets
+  verbs:
+  - get
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  - endpoints
+  - events
+  - persistentvolumeclaims
+  - pods
+  - secrets
+  - services
+  verbs:
+  - '*'
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - get
+- apiGroups:
+  - monitoring.coreos.com
+  resources:
+  - servicemonitors
+  verbs:
+  - create
+  - get
+- apiGroups:
+  - webotx.nec.com
+  resources:
+  - '*'
+  - applicationservers
+  verbs:
+  - '*'
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: webotx-operator-manager-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: webotx-operator-manager-role
+subjects:
+- kind: ServiceAccount
+  name: webotx-operator-controller-manager
+---
+# permissions to do leader election.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: webotx-operator-leader-election-role
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: webotx-operator-leader-election-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: webotx-operator-leader-election-role
+subjects:
+- kind: ServiceAccount
+  name: webotx-operator-controller-manager
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    name: webotx-operator
+    control-plane: webotx-operator-controller-manager
+  name: webotx-operator-controller-manager-metrics-service
+spec:
+  ports:
+  - name: http-metrics
+    port: 8383
+    protocol: TCP
+    targetPort: 8383
+  - name: metering-metrics
+    port: 8989
+    protocol: TCP
+    targetPort: 8989
+  selector:
+    control-plane: webotx-operator-controller-manager
+---
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -22,17 +172,22 @@ data:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: webotx-operator
+  name: webotx-operator-controller-manager
+  labels:
+    name: webotx-operator
+    control-plane: webotx-operator-controller-manager
 spec:
-  replicas: 1
   selector:
     matchLabels:
-      name: webotx-operator
+      control-plane: webotx-operator-controller-manager
+  replicas: 1
   template:
     metadata:
       labels:
         name: webotx-operator
+        control-plane: webotx-operator-controller-manager
       annotations:
+        kubectl.kubernetes.io/default-container: manager
         prometheus.io/scrape: "true"
         prometheus.io/scheme: "http"
         prometheus.io/path: "/metrics"
@@ -41,7 +196,8 @@ spec:
       # Set when pulling an image from the private registry.
       #imagePullSecrets:
       #  - name: REPLACE_REGISTRY_AUTH_SECRET_NAME
-      serviceAccountName: webotx-operator
+      securityContext:
+        runAsNonRoot: true
       volumes:
         - name: share-volume
           emptyDir: {}
@@ -50,50 +206,57 @@ spec:
         #  configMap:
         #    name: REPLACE_CERTIFICATE_CONFIGMAP_NAME
       containers:
-        - name: webotx-operator
-          # Replace this with the built image name
-          image: REPLACE_WEBOTX_OPERATOR_IMAGE
-          command:
-          - /opt/WebOTX/bin/entrypoint
-          imagePullPolicy: Always
-          env:
-            - name: WATCH_NAMESPACE
-              valueFrom:
-                fieldRef:
-                  fieldPath: metadata.namespace
-            - name: POD_NAME
-              valueFrom:
-                fieldRef:
-                  fieldPath: metadata.name
-            - name: OPERATOR_NAME
-              value: "webotx-operator"
-            - name: LICENSE_KEY
-              # Replace this with the WebOTX Operator License Key
-              value: REPLACE_LICENSE_KEY
-          envFrom:
-            - configMapRef:
-                name: webotx-operator-config
-          livenessProbe:
-            httpGet:
-              path: /healthz
-              port: 8686
-              scheme: HTTP
-            initialDelaySeconds: 0
-            periodSeconds: 10
-            timeoutSeconds: 3
-            successThreshold: 1
-            failureThreshold: 3
-          volumeMounts:
-            - name: share-volume
-              mountPath: /opt/WebOTX/logs
-              subPath: logs
-            - name: share-volume
-              mountPath: /opt/WebOTX/profile
-              subPath: profile
-            # Set when replacing the server certificate used by the metering function.
-            #- mountPath: /opt/WebOTX/config/server.crt
-            #  name: certificate-volume
-            #  subPath: server.crt
-            #- mountPath: /opt/WebOTX/config/server.key
-            #  name: certificate-volume
-            #  subPath: server.key
+      - command:
+        - /opt/WebOTX/bin/entrypoint
+        args:
+        - --leader-elect
+        # Replace this with the built image name
+        image: REPLACE_WEBOTX_OPERATOR_IMAGE
+        name: manager
+        securityContext:
+          allowPrivilegeEscalation: false
+        env:
+          - name: WATCH_NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
+          - name: LOGSTASH_IMAGE
+            value: "docker.elastic.co/logstash/logstash-oss:8.2.1"
+        envFrom:
+          - configMapRef:
+              name: webotx-operator-config
+          - secretRef:
+              name: webotx-operator-license
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8686
+            scheme: HTTP
+          initialDelaySeconds: 0
+          periodSeconds: 10
+          timeoutSeconds: 3
+          successThreshold: 1
+          failureThreshold: 3
+        volumeMounts:
+          - name: share-volume
+            mountPath: /opt/WebOTX/logs
+            subPath: logs
+          - name: share-volume
+            mountPath: /opt/WebOTX/profile
+            subPath: profile
+          # Set when replacing the server certificate used by the metering function.
+          #- mountPath: /opt/WebOTX/config/server.crt
+          #  name: certificate-volume
+          #  subPath: server.crt
+          #- mountPath: /opt/WebOTX/config/server.key
+          #  name: certificate-volume
+          #  subPath: server.key
+        resources:
+          limits:
+            cpu: 500m
+            memory: 128Mi
+          requests:
+            cpu: 10m
+            memory: 64Mi
+      serviceAccountName: webotx-operator-controller-manager
+      terminationGracePeriodSeconds: 10

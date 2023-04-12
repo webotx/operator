@@ -1,8 +1,8 @@
-# Copyright 2021 NEC Corporation.
+# Copyright 2022 NEC Corporation.
 # Use is subject to license terms.
 # Vendor: NEC Corporation.
 # Product: WebOTX Operator for Kubernetes
-# Version: 10.40.00.00
+# Version: 11.10.00.00
 # 
 apiVersion: v1
 kind: ConfigMap
@@ -51,7 +51,7 @@ data:
     fi
 
     ## Recovery persistence files
-    ##  Domain setting files 
+    ##  Domain setting files
     ##      ${INSTANCE_ROOT}/config/TS
     ##  JMX setting files
     ##      ${INSTANCE_ROOT}/jmq
@@ -75,7 +75,7 @@ data:
           rm -rf ${INSTANCE_ROOT}/jmq
           cp -prf ${INSTALL_ROOT}/backups/persistence-files/${DOMAIN_NAME}/jmq ${INSTANCE_ROOT}
         fi
-        if [ -e ${INSTALL_ROOT}/backups/persistence-files/Trnsv/multitpm/starter ]; then 
+        if [ -e ${INSTALL_ROOT}/backups/persistence-files/Trnsv/multitpm/starter ]; then
           rm -rf ${INSTALL_ROOT}/Trnsv/multitpm/multitpm
           cp -prf ${INSTALL_ROOT}/backups/persistence-files/Trnsv/multitpm/starter ${INSTALL_ROOT}/Trnsv/multitpm
         fi
@@ -101,8 +101,8 @@ data:
     if [ `ls -1 ${INSTALL_ROOT}/backups/${DOMAIN_NAME}/diagnostic-reports | wc -l` -gt 0 ]; then
       DEL_GENERATE=`expr ${REPORT_GENERATE} + 1`
       if [ -e /opt/WebOTX/bin/otxadmin ]; then
-        REPORTS1=`ls -t -1 ${INSTALL_ROOT}/backups/${DOMAIN_NAME}/diagnostic-reports/*.txt | tail -n+${DEL_GENERATE}` 
-        REPORTS2=`ls -t -1 ${INSTALL_ROOT}/backups/${DOMAIN_NAME}/diagnostic-reports/*.zip | tail -n+${DEL_GENERATE}` 
+        REPORTS1=`ls -t -1 ${INSTALL_ROOT}/backups/${DOMAIN_NAME}/diagnostic-reports/*.txt | tail -n+${DEL_GENERATE}`
+        REPORTS2=`ls -t -1 ${INSTALL_ROOT}/backups/${DOMAIN_NAME}/diagnostic-reports/*.zip | tail -n+${DEL_GENERATE}`
         REPORTS=`echo $REPORTS1 $REPORTS2`
       else
         REPORTS1=`ls -t -1 ${INSTALL_ROOT}/backups/${DOMAIN_NAME}/diagnostic-reports/*.tar.gz | tail -n+${DEL_GENERATE}`
@@ -111,54 +111,56 @@ data:
     fi
     if [ -n "${REPORTS}" ]; then
       log "INFO Delete old diagnostic report files. [${REPORTS}]"
-      rm -v ${REPORTS} 
+      rm -v ${REPORTS}
     fi
 
     ## Setting session replication (Standard only)
     if [ -e /opt/WebOTX/bin/otxadmin ]; then
-      /opt/share.nec/bin/OTXELChk > /dev/null 2>&1
-      AS_LICENSE_CODE=$?
-      if [ "${AS_LICENSE_CODE}" -eq "3" -o "${AS_LICENSE_CODE}" -eq "13" -o "${AS_LICENSE_CODE}" -eq "152" ]; then
-        log "INFO Setting of session replication."
-        if [ -z "${OTX_DATAGRID_TYPE}" ]; then
-          OTX_DATAGRID_TYPE=disabled
-        fi
-        if [ -z "${OTX_USE_JMX_AGENT}" ]; then
-          OTX_USE_JMX_AGENT=false
-        fi
-        if [ -z "${OTX_USE_ALL_PROCESSGROUPS}" ]; then
-          OTX_USE_ALL_PROCESSGROUPS=false
-        fi
-        log "INFO datagrid type is ${OTX_DATAGRID_TYPE}."
-        log "INFO use-jmx-agent is ${OTX_USE_JMX_AGENT}."
-        log "INFO use-all-processgroups is ${OTX_USE_ALL_PROCESSGROUPS}."
-
-        sed -i \
-            -e "s;\(<manager-properties.*\)storage-type=\".*\"\(.*\)$;\1\2;g" \
-            -e "s;\(<manager-properties.*\)datagrid-name=\".*\"\(.*\)$;\1\2;g" \
-            -e "s;\(<data-grids.*\)infinispan-jgroups-file=\".*\"\(.*\)$;\1\2;g" \
-            -e "s;\(<data-grid\).*\( name=\"__default_http_session\"\).*$;\1\2></data-grid>;g" ${DOMAIN_XML}
-
-        if [ $OTX_DATAGRID_TYPE = "infinispan" ]; then
-          grep infinispan-embedded.jar ${INSTALL_ROOT}/features/full-profile-feature.xml || \
-          sed -i \
-            "s;\(</modules>\);    <module location=\"lib/datagrid/infinispan-embedded.jar\" />\n    \1;i" \
-          ${INSTALL_ROOT}/features/full-profile-feature.xml
+      if [ -e /opt/WebOTX/lib/datagrid/infinispan-embedded.jar ]; then
+        /opt/share.nec/bin/OTXELChk > /dev/null 2>&1
+        AS_LICENSE_CODE=$?
+        if [ "${AS_LICENSE_CODE}" -eq "3" -o "${AS_LICENSE_CODE}" -eq "13" -o "${AS_LICENSE_CODE}" -eq "152" ]; then
+          log "INFO Setting of session replication."
+          if [ -z "${OTX_DATAGRID_TYPE}" ]; then
+            OTX_DATAGRID_TYPE=disabled
+          fi
+          if [ -z "${OTX_USE_JMX_AGENT}" ]; then
+            OTX_USE_JMX_AGENT=false
+          fi
+          if [ -z "${OTX_USE_ALL_PROCESSGROUPS}" ]; then
+            OTX_USE_ALL_PROCESSGROUPS=false
+          fi
+          log "INFO datagrid type is ${OTX_DATAGRID_TYPE}."
+          log "INFO use-jmx-agent is ${OTX_USE_JMX_AGENT}."
+          log "INFO use-all-processgroups is ${OTX_USE_ALL_PROCESSGROUPS}."
 
           sed -i \
-              -e "s;\(<manager-properties\)\(.*$\);\1 storage-type=\"DATAGRID\"\2;g" \
-              -e "s;\(<manager-properties\)\(.*$\);\1 datagrid-name=\"__default_http_session\"\2;g" \
-              -e "s;\(<data-grids\)\(.*$\);\1 infinispan-jgroups-file=\"jgroups-kubernetes.xml\"\2;g" \
-              -e "s;\(<data-grid name=\"__default_http_session\"\)\(.*></data-grid>\);\1 archetype=\"standard\"\2;g" \
-              -e "s;\(<data-grid name=\"__default_http_session\"\)\(.*></data-grid>\);\1 use-jmx-agent=\"${OTX_USE_JMX_AGENT}\"\2;g" \
-              -e "s;\(<data-grid name=\"__default_http_session\"\)\(.*></data-grid>\);\1 use-all-processgroups=\"${OTX_USE_ALL_PROCESSGROUPS}\"\2;g" \
-              -e "s;\(<data-grid name=\"__default_http_session\"\)\(.*></data-grid>\);\1 type=\"${OTX_DATAGRID_TYPE}\"\2;g" ${DOMAIN_XML}
+              -e "s;\(<manager-properties.*\)storage-type=\".*\"\(.*\)$;\1\2;g" \
+              -e "s;\(<manager-properties.*\)datagrid-name=\".*\"\(.*\)$;\1\2;g" \
+              -e "s;\(<data-grids.*\)infinispan-jgroups-file=\".*\"\(.*\)$;\1\2;g" \
+              -e "s;\(<data-grid\).*\( name=\"__default_http_session\"\).*$;\1\2></data-grid>;g" ${DOMAIN_XML}
 
-          echo 'JAVA_OPTIONS="$JAVA_OPTIONS -Djava.net.preferIPv4Stack=true"' >> ${INSTALL_ROOT}/config/asenv.conf
-          echo 'export JAVA_OPTIONS' >> ${INSTALL_ROOT}/config/asenv.conf
-        else
-          sed -i -e "/lib\/datagrid\/infinispan-embedded.jar$/d" ${INSTALL_ROOT}/features/full-profile-feature.xml
-          sed -i -e "s;\(<data-grids\)\(.*$\);\1 infinispan-jgroups-file=\"jgroups-udp.xml\"\2;g" ${DOMAIN_XML}
+          if [ $OTX_DATAGRID_TYPE = "infinispan" ]; then
+            grep infinispan-embedded.jar ${INSTALL_ROOT}/features/full-profile-feature.xml || \
+            sed -i \
+              "s;\(</modules>\);    <module location=\"lib/datagrid/infinispan-embedded.jar\" />\n    \1;i" \
+            ${INSTALL_ROOT}/features/full-profile-feature.xml
+
+            sed -i \
+                -e "s;\(<manager-properties\)\(.*$\);\1 storage-type=\"DATAGRID\"\2;g" \
+                -e "s;\(<manager-properties\)\(.*$\);\1 datagrid-name=\"__default_http_session\"\2;g" \
+                -e "s;\(<data-grids\)\(.*$\);\1 infinispan-jgroups-file=\"jgroups-kubernetes.xml\"\2;g" \
+                -e "s;\(<data-grid name=\"__default_http_session\"\)\(.*></data-grid>\);\1 archetype=\"standard\"\2;g" \
+                -e "s;\(<data-grid name=\"__default_http_session\"\)\(.*></data-grid>\);\1 use-jmx-agent=\"${OTX_USE_JMX_AGENT}\"\2;g" \
+                -e "s;\(<data-grid name=\"__default_http_session\"\)\(.*></data-grid>\);\1 use-all-processgroups=\"${OTX_USE_ALL_PROCESSGROUPS}\"\2;g" \
+                -e "s;\(<data-grid name=\"__default_http_session\"\)\(.*></data-grid>\);\1 type=\"${OTX_DATAGRID_TYPE}\"\2;g" ${DOMAIN_XML}
+
+            echo 'JAVA_OPTIONS="$JAVA_OPTIONS -Djava.net.preferIPv4Stack=true"' >> ${INSTALL_ROOT}/config/asenv.conf
+            echo 'export JAVA_OPTIONS' >> ${INSTALL_ROOT}/config/asenv.conf
+          else
+            sed -i -e "/lib\/datagrid\/infinispan-embedded.jar$/d" ${INSTALL_ROOT}/features/full-profile-feature.xml
+            sed -i -e "s;\(<data-grids\)\(.*$\);\1 infinispan-jgroups-file=\"jgroups-udp.xml\"\2;g" ${DOMAIN_XML}
+          fi
         fi
       fi
     fi
@@ -170,8 +172,13 @@ data:
       /opt/WebOTX/bin/docker/webotx-startup.sh &
       pid=$!
     else
-      log "INFO Run ${OTX_UBER_JAR}."
-      java -jar ${OTX_UBER_JAR} --basedir /opt &
+      if [ -e /opt/WebOTX/bin/webotx-micro.sh ]; then
+        log "INFO Run webotx-micro.sh."
+        sh /opt/WebOTX/bin/webotx-micro.sh --logconfig ${INSTANCE_ROOT}/config/log4j2-as.xml &
+      else
+        log "INFO Run ${OTX_UBER_JAR}."
+        java -jar ${OTX_UBER_JAR} --basedir /opt &
+      fi
       pid=$!
     fi
 
@@ -206,7 +213,7 @@ data:
     pid=`pgrep -fo "webotx-term.sh"`
     if [ "$?" != 0 ]; then
       ## Execute stop script
-      log "INFO Execute a termination script." 
+      log "INFO Execute a termination script."
       exec 1> /dev/null
       exec 2> /dev/null
       /opt/WebOTX/bin/docker/webotx-term.sh
@@ -223,7 +230,7 @@ data:
   webotx-term.sh: |
     #!/bin/bash
 
-    if [ $$ != `pgrep -fo $0`  ]; then
+    if [ $$ != `pgrep -fo $0` ]; then
       wait `pgrep -fo $0`
       exit 0
     fi
@@ -235,13 +242,13 @@ data:
 
     exec 1> >(tee -a ${INSTALL_ROOT}/backups/${DOMAIN_NAME}/logs/operator.log)
     exec 2>&1
-    
+
     function log() {
       echo -e "$(date '+%Y-%m-%d %H:%M:%S') $1"
     }
-    
+
     log "INFO Start termination script."
-    
+
     if [ -e /opt/WebOTX/bin/otxadmin ]; then
       ## Generate diagnostic report
       log "INFO Output diagnostic report."
@@ -324,20 +331,34 @@ data:
       alive=$?
       if [ "$alive" = "0" ]; then
         log "INFO Stop the WebOTX domain."
-        kill -s SIGTERM `ps -ef | grep ${OTX_UBER_JAR} | grep -v grep | awk '{print $2}'` >/dev/null
-        i=0;
-        while [ `ps -ef | grep ${OTX_UBER_JAR} | grep -v grep | wc -l` -gt 0 ]
-        do
-          sleep 1
-          if [ $i -gt ${OTX_STOP_TIMEOUT:-1800} ]; then
-            kill -s SIGKILL `ps -ef | grep ${OTX_UBER_JAR} | grep -v grep | awk '{print $2}'` >/dev/null
-            break
-          fi
-          i=`expr $i + 1`
-        done
+        if [ -e /opt/WebOTX/bin/webotx-micro.sh ]; then
+          kill -s SIGTERM `ps -ef | grep com/nec/webotx/micro/WebOTXMicro | grep -v grep | awk '{print $2}'` >/dev/null
+          i=0;
+          while [ `ps -ef | grep com/nec/webotx/micro/WebOTXMicro | grep -v grep | wc -l` -gt 0 ]
+          do
+            sleep 1
+            if [ $i -gt ${OTX_STOP_TIMEOUT:-1800} ]; then
+              kill -s SIGKILL `ps -ef | grep com/nec/webotx/micro/WebOTXMicro | grep -v grep | awk '{print $2}'` >/dev/null
+              break
+            fi
+            i=`expr $i + 1`
+          done
+        else
+          kill -s SIGTERM `ps -ef | grep ${OTX_UBER_JAR} | grep -v grep | awk '{print $2}'` >/dev/null
+          i=0;
+          while [ `ps -ef | grep ${OTX_UBER_JAR} | grep -v grep | wc -l` -gt 0 ]
+          do
+            sleep 1
+            if [ $i -gt ${OTX_STOP_TIMEOUT:-1800} ]; then
+              kill -s SIGKILL `ps -ef | grep ${OTX_UBER_JAR} | grep -v grep | awk '{print $2}'` >/dev/null
+              break
+            fi
+            i=`expr $i + 1`
+          done
+        fi
       fi
     fi
-    
+
     ## Save persistence files
     ##   Domain setting files
     ##      ${INSTANCE_ROOT}/config/TS
@@ -378,12 +399,12 @@ data:
       fi
     fi
     log "INFO End termination script."
-    
+
     exit 0
 
   webotx-healthcheck.sh: |
     #!/bin/bash
-    
+
     if [ -e /opt/WebOTX/bin/otxadmin ]; then
       /opt/WebOTX/bin/otxadmin is-status >/dev/null
       exit $?
@@ -404,7 +425,9 @@ data:
   logstash-stdout.conf: |
     filter {
       mutate {
+        ecs_compatibility => disabled
         add_field => {
+          ecs_compatibility => disabled
           "ip" => "${POD_IP:unknown}"
           "node" => "${WORKER_NODE_NAME:unknown}"
         }
@@ -418,7 +441,9 @@ data:
   logstash-elasticsearch.conf: |
     filter {
       mutate {
+        ecs_compatibility => disabled
         add_field => {
+          ecs_compatibility => disabled
           "ip" => "${POD_IP:unknown}"
           "node" => "${WORKER_NODE_NAME:unknown}"
         }
@@ -427,14 +452,45 @@ data:
     
     output {
       elasticsearch{
+        ecs_compatibility => disabled
         hosts => ["${ELASTICSEARCH_HOST:unknown}:${ELASTICSEARCH_PORT:9200}"]
+        user => "${ELASTICSEARCH_AUTH_USER:}"
+        password => "${ELASTICSEARCH_AUTH_PASSWORD:}"
         index => "webotx"
+        codec => plain { ecs_compatibility => disabled }
+      }
+    }
+
+  logstash-elasticsearch-tls.conf: |
+    filter {
+      mutate {
+        ecs_compatibility => disabled
+        add_field => {
+          ecs_compatibility => disabled
+          "ip" => "${POD_IP:unknown}"
+          "node" => "${WORKER_NODE_NAME:unknown}"
+        }
+      }
+    }
+
+    output {
+      elasticsearch{
+        ecs_compatibility => disabled
+        hosts => ["${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}"]
+        cacert => "/usr/share/logstash/certs/ca.crt"
+        ssl => "${ELASTICSEARCH_TLS_ENABLED:true}"
+        ssl_certificate_verification => "${ELASTICSEARCH_TLS_VERIFICATION:true}"
+        user => "${ELASTICSEARCH_AUTH_USER:}"
+        password => "${ELASTICSEARCH_AUTH_PASSWORD:}"
+        index => "webotx"
+        codec => plain { ecs_compatibility => disabled }
       }
     }
 
   webotx.conf: |
     input {
       file{
+        ecs_compatibility => disabled
         path=>["/opt/WebOTX/domains/*/logs/agent.log",
                "/opt/WebOTX/domains/*/logs/jmq/jmqadmin.log",
                "/opt/WebOTX/domains/*/logs/jmq/jmqmessage.log",
@@ -454,6 +510,7 @@ data:
         start_position => "beginning"
         sincedb_path => "/opt/WebOTX/domains/sincedb"
         codec => multiline {
+          ecs_compatibility => disabled
           patterns_dir => ["/usr/share/logstash/config/pattern"]
           pattern => "^%{L4J2_DATE}"
           negate => true
@@ -463,6 +520,7 @@ data:
       }
 
       file{
+        ecs_compatibility => disabled
         path=>["/opt/WebOTX/domains/*/logs/ObjectBroker/ObLog.log",
                "/opt/WebOTX/domains/*/logs/ObjectBroker/message.log",
                "/opt/WebOTX/domains/*/logs/ObjectBroker/namesv.log",
@@ -470,6 +528,7 @@ data:
         start_position => "beginning"
         sincedb_path => "/opt/WebOTX/domains/sincedb"
         codec => multiline {
+          ecs_compatibility => disabled
           patterns_dir => ["/usr/share/logstash/config/pattern"]
           pattern => "^%{LOG_DATE4}"
           negate => true
@@ -479,11 +538,13 @@ data:
       }
 
       file{
+        ecs_compatibility => disabled
         path=>["/opt/WebOTX/domains/*/logs/tpsystem/ajpbase.log",
                "/opt/WebOTX/domains/*/logs/tpsystem/iiopbase.log"]
         start_position => "beginning"
         sincedb_path => "/opt/WebOTX/domains/sincedb"
         codec => multiline {
+          ecs_compatibility => disabled
           patterns_dir => ["/usr/share/logstash/config/pattern"]
           pattern => "^\[%{GREEDYDATA}\]%{LOG_DATE6}"
           negate => true
@@ -493,6 +554,7 @@ data:
       }
 
       file{
+        ecs_compatibility => disabled
         path=>["/opt/WebOTX/domains/*/logs/operator.log",
                "/opt/WebOTX/domains/*/logs/server.log",
                "/opt/WebOTX/domains/*/logs/server_access.log",
@@ -505,19 +567,21 @@ data:
                "/opt/WebOTX/domains/*/logs/ObjectBroker/syslog.log",
                "/opt/WebOTX/domains/*/logs/tpsystem/accesslog/access.ajp.log",
                "/opt/WebOTX/domains/*/logs/tpsystem/history.act",
-               "/opt/WebOTX/domains/*/logs/tpsystem/sysmsg.trc",
+               "/opt/WebOTX/domains/*/logs/tpsystem/tpsystem.log",
                "/opt/WebOTX/domains/*/logs/web/access_log",
                "/opt/WebOTX/domains/*/logs/web/error_log",
                "/opt/WebOTX/domains/*/logs/web/mod_jk-24.log_*",
                "/opt/WebOTX/domains/*/logs/web/ssl_request_log"]
         start_position => "beginning"
         sincedb_path => "/opt/WebOTX/domains/sincedb"
+        codec => plain { ecs_compatibility => disabled }
       }
     }
     
     filter {
       if [path] =~ "\/opt\/WebOTX\/domains\/.*\/logs\/agent\.log" {
         grok {
+          ecs_compatibility => disabled
           patterns_dir => ["/usr/share/logstash/config/pattern"]
           match => [
             "message", "%{AGENT_LOG}"
@@ -526,6 +590,7 @@ data:
       }
       else if [path] =~ "\/opt\/WebOTX\/domains\/.*\/logs\/server\.log" {
         grok {
+          ecs_compatibility => disabled
           patterns_dir => ["/usr/share/logstash/config/pattern"]
           match => [
             "message", "%{SERVER_LOG}"
@@ -534,6 +599,7 @@ data:
       }
       else if [path] =~ "\/opt\/WebOTX\/domains\/.*\/logs\/server_access\.log" {
         grok {
+          ecs_compatibility => disabled
           patterns_dir => ["/usr/share/logstash/config/pattern"]
           match => [
             "message", "%{SERVER_ACCESS_LOG}",
@@ -546,6 +612,7 @@ data:
           drop { }
         }
         grok {
+          ecs_compatibility => disabled
           patterns_dir => ["/usr/share/logstash/config/pattern"]
           match => [
             "message", "%{DIAGNOSTIC_REPORT_PID_LOG}",
@@ -558,6 +625,7 @@ data:
           drop { }
         }
         grok {
+          ecs_compatibility => disabled
           patterns_dir => ["/usr/share/logstash/config/pattern"]
           match => [
             "message", "%{DIAGNOSTIC_REPORT_PG_LOG}",
@@ -570,6 +638,7 @@ data:
           drop { }
         }
         grok {
+          ecs_compatibility => disabled
           patterns_dir => ["/usr/share/logstash/config/pattern"]
           match => [
             "message", "%{DIAGNOSTIC_REPORT_LOG}",
@@ -579,6 +648,7 @@ data:
       }
       else if [path] =~ "\/opt\/WebOTX\/domains\/.*\/logs\/diagnostics\/optional-stats\.csv" {
         grok {
+          ecs_compatibility => disabled
           patterns_dir => ["/usr/share/logstash/config/pattern"]
           match => [
             "message", "%{DIAGNOSTIC_OPTIONAL_STAT}",
@@ -588,6 +658,7 @@ data:
       }
       else if [path] =~ "\/opt\/WebOTX\/domains\/.*\/logs\/adminrest_access\.log" {
         grok {
+          ecs_compatibility => disabled
           patterns_dir => ["/usr/share/logstash/config/pattern"]
           match => [
             "message", "%{ADMINREST_ACCESS_LOG}",
@@ -597,6 +668,7 @@ data:
       }
       else if [path] =~ "\/opt\/WebOTX\/domains\/.*\/logs\/jmq\/jmqadmin\.log" {
         grok {
+          ecs_compatibility => disabled
           patterns_dir => ["/usr/share/logstash/config/pattern"]
           match => [
             "message", "%{JMQADMIN_LOG}",
@@ -606,6 +678,7 @@ data:
       }
       else if [path] =~ "\/opt\/WebOTX\/domains\/.*\/logs\/jmq\/jmqmessage\.log" {
         grok {
+          ecs_compatibility => disabled
           patterns_dir => ["/usr/share/logstash/config/pattern"]
           match => [
             "message", "%{JMQMESSAGE_LOG}",
@@ -615,6 +688,7 @@ data:
       }
       else if [path] =~ "\/opt\/WebOTX\/domains\/.*\/logs\/jmq\/jmqpacket\.log" {
         grok {
+          ecs_compatibility => disabled
           patterns_dir => ["/usr/share/logstash/config/pattern"]
           match => [
             "message", "%{JMQPACKET_LOG}",
@@ -624,6 +698,7 @@ data:
       }
       else if [path] =~ "\/opt\/WebOTX\/domains\/.*\/logs\/jmq\/jmqserver\.log" {
         grok {
+          ecs_compatibility => disabled
           patterns_dir => ["/usr/share/logstash/config/pattern"]
           match => [
             "message", "%{JMQSERVER_LOG}",
@@ -633,6 +708,7 @@ data:
       }
       else if [path] =~ "\/opt\/WebOTX\/domains\/.*\/logs\/jmq\/jms\.log" {
         grok {
+          ecs_compatibility => disabled
           patterns_dir => ["/usr/share/logstash/config/pattern"]
           match => [
             "message", "%{JMS_LOG}",
@@ -642,6 +718,7 @@ data:
       }
       else if [path] =~ "\/opt\/WebOTX\/domains\/.*\/logs\/jmq\/std\.log" {
         grok {
+          ecs_compatibility => disabled
           patterns_dir => ["/usr/share/logstash/config/pattern"]
           match => [
             "message", "%{STD_LOG}"
@@ -650,6 +727,7 @@ data:
       }
       else if [path] =~ "\/opt\/WebOTX\/domains\/.*\/logs\/jpa\/jpa\.log" {
         grok {
+          ecs_compatibility => disabled
           patterns_dir => ["/usr/share/logstash/config/pattern"]
           match => [
             "message", "%{JPA_LOG}",
@@ -659,6 +737,7 @@ data:
       }
       else if [path] =~ "\/opt\/WebOTX\/domains\/.*\/logs\/manager_access\.log" {
         grok {
+          ecs_compatibility => disabled
           patterns_dir => ["/usr/share/logstash/config/pattern"]
           match => [
             "message", "%{MANAGER_ACCESS_LOG}",
@@ -668,6 +747,7 @@ data:
       }
       else if [path] =~ "\/opt\/WebOTX\/domains\/.*\/logs\/ObjectBroker\/ObLog\.log" {
         grok {
+          ecs_compatibility => disabled
           patterns_dir => ["/usr/share/logstash/config/pattern"]
           match => [
             "message", "%{OBLOG_LOG}",
@@ -677,6 +757,7 @@ data:
       }
       else if [path] =~ "\/opt\/WebOTX\/domains\/.*\/logs\/ObjectBroker\/message\.log" {
         grok {
+          ecs_compatibility => disabled
           patterns_dir => ["/usr/share/logstash/config/pattern"]
           match => [
             "message", "%{MESSAGE_LOG}",
@@ -686,6 +767,7 @@ data:
       }
       else if [path] =~ "\/opt\/WebOTX\/domains\/.*\/logs\/ObjectBroker\/namesv\.log" {
         grok {
+          ecs_compatibility => disabled
           patterns_dir => ["/usr/share/logstash/config/pattern"]
           match => [
             "message", "%{NAMESV_LOG}",
@@ -695,6 +777,7 @@ data:
       }
       else if [path] =~ "\/opt\/WebOTX\/domains\/.*\/logs\/ObjectBroker\/oad\.log" {
         grok {
+          ecs_compatibility => disabled
           patterns_dir => ["/usr/share/logstash/config/pattern"]
           match => [
             "message", "%{OAD_LOG}",
@@ -704,6 +787,7 @@ data:
       }
       else if [path] =~ "\/opt\/WebOTX\/domains\/.*\/logs\/ObjectBroker\/oadj\.log" {
         grok {
+          ecs_compatibility => disabled
           patterns_dir => ["/usr/share/logstash/config/pattern"]
           match => [
             "message", "%{OADJ_LOG}",
@@ -713,6 +797,7 @@ data:
       }
       else if [path] =~ "\/opt\/WebOTX\/domains\/.*\/logs\/ObjectBroker\/objava\.log" {
         grok {
+          ecs_compatibility => disabled
           patterns_dir => ["/usr/share/logstash/config/pattern"]
           match => [
             "message", "%{OBJAVA_LOG}",
@@ -722,6 +807,7 @@ data:
       }
       else if [path] =~ "\/opt\/WebOTX\/domains\/.*\/logs\/ObjectBroker\/ospi\.log" {
         grok {
+          ecs_compatibility => disabled
           patterns_dir => ["/usr/share/logstash/config/pattern"]
           match => [
             "message", "%{OSPI_LOG}",
@@ -731,6 +817,7 @@ data:
       }
       else if [path] =~ "\/opt\/WebOTX\/domains\/.*\/logs\/ObjectBroker\/syslog\.log" {
         grok {
+          ecs_compatibility => disabled
           patterns_dir => ["/usr/share/logstash/config/pattern"]
           match => [
             "message", "%{SYSLOG_LOG}",
@@ -740,6 +827,7 @@ data:
       }
       else if [path] =~ "\/opt\/WebOTX\/domains\/.*\/logs\/tpsystem\/.*\/.*\/.*_sys\..*\.log" {
         grok {
+          ecs_compatibility => disabled
           patterns_dir => ["/usr/share/logstash/config/pattern"]
           match => [
             "message", "%{PROCESSGROUP_SYS_LOG}"
@@ -748,6 +836,7 @@ data:
       }
       else if [path] =~ "\/opt\/WebOTX\/domains\/.*\/logs\/tpsystem\/.*\/.*\/.*\..*\.log" {
         grok {
+          ecs_compatibility => disabled
           patterns_dir => ["/usr/share/logstash/config/pattern"]
           match => [
             "message", "%{PROCESSGROUP_LOG}"
@@ -756,6 +845,7 @@ data:
       }
       else if [path] =~ "\/opt\/WebOTX\/domains\/.*\/logs\/tpsystem\/accesslog\/access\.ajp\.log" {
         grok {
+          ecs_compatibility => disabled
           patterns_dir => ["/usr/share/logstash/config/pattern"]
           match => [
             "message", "%{ACCESS_AJP_LOG}",
@@ -765,6 +855,7 @@ data:
       }
       else if [path] =~ "\/opt\/WebOTX\/domains\/.*\/logs\/tpsystem\/ajpbase\.log" {
         grok {
+          ecs_compatibility => disabled
           patterns_dir => ["/usr/share/logstash/config/pattern"]
           match => [
             "message", "%{AJPBASE_LOG}",
@@ -774,6 +865,7 @@ data:
       }
       else if [path] =~ "\/opt\/WebOTX\/domains\/.*\/logs\/tpsystem\/history\.act" {
         grok {
+          ecs_compatibility => disabled
           patterns_dir => ["/usr/share/logstash/config/pattern"]
           match => [
             "message", "%{HISTORY_ACT}",
@@ -783,6 +875,7 @@ data:
       }
       else if [path] =~ "\/opt\/WebOTX\/domains\/.*\/logs\/tpsystem\/iiopbase\.log" {
         grok {
+          ecs_compatibility => disabled
           patterns_dir => ["/usr/share/logstash/config/pattern"]
           match => [
             "message", "%{IIOPBASE_LOG}",
@@ -790,17 +883,19 @@ data:
           ]
         }
       }
-      else if [path] =~ "\/opt\/WebOTX\/domains\/.*\/logs\/tpsystem\/sysmsg\.trc" {
+      else if [path] =~ "\/opt\/WebOTX\/domains\/.*\/logs\/tpsystem\/tpsystem\.log" {
         grok {
+          ecs_compatibility => disabled
           patterns_dir => ["/usr/share/logstash/config/pattern"]
           match => [
-            "message", "%{SYSMSG_TRC}",
+            "message", "%{TPSYSTEM_LOG}",
             "message", "%{GREEDYDATA}"
           ]
         }
       }
       else if [path] =~ "\/opt\/WebOTX\/domains\/.*\/logs\/TS\/jta\.log" {
         grok {
+          ecs_compatibility => disabled
           patterns_dir => ["/usr/share/logstash/config/pattern"]
           match => [
             "message", "%{JTA_LOG}",
@@ -810,6 +905,7 @@ data:
       }
       else if [path] =~ "\/opt\/WebOTX\/domains\/.*\/logs\/web\/access_log" {
         grok {
+          ecs_compatibility => disabled
           patterns_dir => ["/usr/share/logstash/config/pattern"]
           match => [
             "message", "%{WEB_ACCESS_LOG}",
@@ -819,6 +915,7 @@ data:
       }
       else if [path] =~ "\/opt\/WebOTX\/domains\/.*\/logs\/web\/catalina\.log" {
         grok {
+          ecs_compatibility => disabled
           patterns_dir => ["/usr/share/logstash/config/pattern"]
           match => [
             "message", "%{CATALINA_LOG}",
@@ -828,6 +925,7 @@ data:
       }
       else if [path] =~ "\/opt\/WebOTX\/domains\/.*\/logs\/web\/error_log" {
         grok {
+          ecs_compatibility => disabled
           patterns_dir => ["/usr/share/logstash/config/pattern"]
           match => [
             "message", "%{WEB_ERROR_LOG}",
@@ -837,6 +935,7 @@ data:
       }
       else if [path] =~ "\/opt\/WebOTX\/domains\/.*\/logs\/web\/mod_jk-24\.log_.*" {
         grok {
+          ecs_compatibility => disabled
           patterns_dir => ["/usr/share/logstash/config/pattern"]
           match => [
             "message", "%{MOD_JK_24_LOG}",
@@ -846,6 +945,7 @@ data:
       }
       else if [path] =~ "\/opt\/WebOTX\/domains\/.*\/logs\/web\/ssl_request_log" {
         grok {
+          ecs_compatibility => disabled
           patterns_dir => ["/usr/share/logstash/config/pattern"]
           match => [
             "message", "%{SSL_REQUEST_LOG}",
@@ -855,6 +955,7 @@ data:
       }
       else if [path] =~ "\/opt\/WebOTX\/domains\/.*\/logs\/web\/webservice\.log" {
         grok {
+          ecs_compatibility => disabled
           patterns_dir => ["/usr/share/logstash/config/pattern"]
           match => [
             "message", "%{WEBSERVICE_LOG}",
@@ -863,7 +964,6 @@ data:
         }
       }
     }
-
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -989,8 +1089,8 @@ data:
     # <INSTANCE_ROOT>/logs/tpsystem/iiopbase.log
     IIOPBASE_LOG           ^\[%{GREEDYDATA}\]%{LOG_DATE6:timestamp}\s?%{GREEDYDATA}
 
-    # <INSTANCE_ROOT>/logs/tpsystem/sysmsg.trc
-    SYSMSG_TRC             ^%{LOG_DATE4:timestamp} %{GREEDYDATA}
+    # <INSTANCE_ROOT>/logs/tpsystem/tpsystem.log
+    TPSYSTEM_LOG           ^%{LOG_DATE4:timestamp} %{GREEDYDATA}
 
     # <INSTANCE_ROOT>/logs/TS/jta.log
     JTA_LOG                ^%{L4J2_DATE:timestamp} %{AS_LOGLEVEL:level}\s*%{NOTSPACE}\s*- %{GREEDYDATA} \[%{GREEDYDATA}\]%{GREEDYDATA}

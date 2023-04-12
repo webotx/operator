@@ -1,8 +1,8 @@
 # Vendor: NEC Corporation.
 # Product: WebOTX Operator for Kubernetes
-# Version: 10.40.00.00
+# Version: 11.10.00.00
 # 
-apiVersion: webotx.nec.com/v2
+apiVersion: webotx.nec.com/v3
 kind: ApplicationServer
 metadata:
   # Replace this with the ApplicationServer Object name
@@ -119,6 +119,21 @@ spec:
       # optional
       useAllProcessGroups: false
 
+    # File Mounts related settings
+    # optional
+    fileMounts:
+      # Set the file mounts parameters using ConfigMaps
+      configMaps:
+      - name: REPLACE_CONFIGMAP_NAME
+        key: REPLACE_CONFIGMAP_KEY
+        path: REPLACE_ABSOLUTE_PATH
+
+      # Set the file mounts parameters using Secrets
+      secrets:
+      - name: REPLACE_SECRET_NAME
+        key: REPLACE_SECRET_KEY
+        path: REPLACE_ABSOLUTE_PATH
+
   # Common settings
   common:
     # Setting labels for 'Deployment', 'Pod' and 'Service'.
@@ -212,6 +227,16 @@ spec:
       elasticsearch:
         host: REPLACE_ELASTICSEARCH_HOST
         port: REPLACE_ELASTICESEARCH_PORT
+        tls:
+          enabled: true
+          cacert:
+            secret:
+              name: REPLACE_ELASTICSEARCH_CACERT_SECRET_NAME
+              key: REPLACE_ELASTICSEARCH_CACERT_SECRET_KEY
+          verification: true
+        auth:
+          enabled: true
+          secretName: REPLACE_ELASTICSEARCH_AUTH_SECRET_NAME
 
     # Resources related settings.
     # optional

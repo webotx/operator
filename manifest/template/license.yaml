@@ -1,0 +1,12 @@
+# Vendor: NEC Corporation.
+# Product: WebOTX Operator for Kubernetes
+# Version: 11.10.00.00
+# 
+apiVersion: v1
+kind: Secret
+metadata:
+  name: webotx-operator-license
+type: Opaque
+data:
+  # Replace with a Base64-encoded WebOTX Operator License Key.
+  LICENSE_KEY: REPLACE_BASE64_ENCODED_LICENSE_KEY
