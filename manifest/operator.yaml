@@ -1,6 +1,6 @@
 # Vendor: NEC Corporation.
 # Product: WebOTX Operator for Kubernetes
-# Version: 11.10.00.00
+# Version: 11.20.00.00
 # 
 apiVersion: v1
 kind: ServiceAccount
@@ -37,6 +37,12 @@ rules:
   - replicasets
   verbs:
   - get
+- apiGroups:
+  - autoscaling
+  resources:
+  - horizontalpodautoscalers
+  verbs:
+  - '*'
 - apiGroups:
   - ""
   resources:

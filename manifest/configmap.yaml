@@ -1,8 +1,8 @@
-# Copyright 2022 NEC Corporation.
+# Copyright 2023 NEC Corporation.
 # Use is subject to license terms.
 # Vendor: NEC Corporation.
 # Product: WebOTX Operator for Kubernetes
-# Version: 11.10.00.00
+# Version: 11.20.00.00
 # 
 apiVersion: v1
 kind: ConfigMap
@@ -33,6 +33,88 @@ data:
     trap 'exit 143' 15
 
     log "INFO Start init script."
+
+    ## Replace with persistent volume files
+    if [ ! -e ${INSTALL_ROOT}/Trnsv/bin/tpmMain ]; then
+      if [ -e ${INSTALL_ROOT}/bin/otxadmin ]; then
+        if [ -e ${INSTALL_ROOT}/pv ]; then
+          log "INFO Replace with persistent volume files."
+
+          if ls ${INSTALL_ROOT}/pv/application/*.war; then
+            # war file exists
+            for WAR in ${INSTALL_ROOT}/pv/application/*.war; do
+              if [ -f "${WAR}" ]; then
+                log "INFO Replace war file. [`basename "${WAR}"`]"
+                cp -f "${WAR}" ${INSTANCE_ROOT}/autodeploy
+              else
+                log "WARN Not a file. [`basename "${WAR}"`]"
+              fi
+            done
+          fi
+          if ls ${INSTALL_ROOT}/pv/application/*.jar; then
+            # jar file exists
+            for JAR in ${INSTALL_ROOT}/pv/application/*.jar; do
+              if [ -f "${JAR}" ]; then
+                log "INFO Replace jar file. [`basename "${JAR}"`]"
+                cp -f "${JAR}" ${INSTANCE_ROOT}/autodeploy
+              else
+                log "WARN Not a file. [`basename "${JAR}"`]"
+              fi
+            done
+          fi
+          if ls ${INSTALL_ROOT}/pv/application/*.ear; then
+            # ear file exists
+            for EAR in ${INSTALL_ROOT}/pv/application/*.ear; do
+              if [ -f "${EAR}" ]; then
+                log "INFO Replace ear file. [`basename "${EAR}"`]"
+                cp -f "${EAR}" ${INSTANCE_ROOT}/autodeploy
+              else
+                log "WARN Not a file. [`basename "${EAR}"`]"
+              fi
+            done
+          fi
+
+          if [ -e ${INSTALL_ROOT}/pv/configs/config.zip ]; then
+            if [ -f ${INSTALL_ROOT}/pv/configs/config.zip ]; then
+              log "INFO Replace config directory."
+
+              # Replace config directory
+              rm -rf ${INSTANCE_ROOT}/config
+              CWD=`pwd`
+              cd ${INSTANCE_ROOT}
+              jar xvf ${INSTALL_ROOT}/pv/configs/config.zip
+              cd ${CWD}
+
+              # Setting for webotx-startup.sh
+              WEBOTX_AS_HOSTNAME=`cat ${INSTANCE_ROOT}/additional-information.txt | grep ^hostname= | cut -d "=" -f 2`
+              export WEBOTX_DOCKER_HOSTNAME_OLD=${WEBOTX_AS_HOSTNAME}
+              rm -f ${INSTANCE_ROOT}/additional-information.txt
+            else
+              log "WARN Not a file. [config.zip]"
+            fi
+          fi
+
+          if [ -e ${INSTALL_ROOT}/pv/configs/server.policy ]; then
+            if [ -f ${INSTALL_ROOT}/pv/configs/server.policy ]; then
+              log "INFO Replace server.policy file."
+              cp -f ${INSTALL_ROOT}/pv/configs/server.policy ${INSTANCE_ROOT}/config
+            else
+              log "WARN Not a file. [server.policy]"
+            fi
+          fi
+
+          if [ -e ${INSTALL_ROOT}/pv/lib ]; then
+            if [ -d ${INSTALL_ROOT}/pv/lib ]; then
+              log "INFO Replace lib directory."
+              rm -rf ${INSTANCE_ROOT}/lib
+              cp -rf ${INSTALL_ROOT}/pv/lib ${INSTANCE_ROOT}
+            else
+              log "WARN Not a directory. [lib]"
+            fi
+          fi
+        fi
+      fi
+    fi
 
     ## Create link of share directory (logs, diagnostic-reports)
     log "INFO Create link of persistence files."
@@ -117,9 +199,7 @@ data:
     ## Setting session replication (Standard only)
     if [ -e /opt/WebOTX/bin/otxadmin ]; then
       if [ -e /opt/WebOTX/lib/datagrid/infinispan-embedded.jar ]; then
-        /opt/share.nec/bin/OTXELChk > /dev/null 2>&1
-        AS_LICENSE_CODE=$?
-        if [ "${AS_LICENSE_CODE}" -eq "3" -o "${AS_LICENSE_CODE}" -eq "13" -o "${AS_LICENSE_CODE}" -eq "152" ]; then
+        if [ -e ${INSTALL_ROOT}/Trnsv/bin/tpmMain ]; then
           log "INFO Setting of session replication."
           if [ -z "${OTX_DATAGRID_TYPE}" ]; then
             OTX_DATAGRID_TYPE=disabled
@@ -165,6 +245,29 @@ data:
       fi
     fi
     ## end Setting session replication
+
+    ## Setting diagnostic
+    if [ ! -e ${INSTALL_ROOT}/Trnsv/bin/tpmMain ]; then
+      if [ -e ${INSTALL_ROOT}/bin/otxadmin ]; then
+        log "INFO Setting of diagnostic."
+
+        if [ -n "${OTX_FAULT_VERIFICATION_TIME}" ]; then
+          log "INFO faultVerificationTime is ${OTX_FAULT_VERIFICATION_TIME}."
+          sed -i -e "s;\(^faultVerificationTime=\).*$;\1${OTX_FAULT_VERIFICATION_TIME};g" ${INSTANCE_ROOT}/config/diagnostic.properties
+        fi
+
+        if [ -n "${OTX_SLOW_DOWN_MONITOR}" ]; then
+          log "INFO slowDownMonitor is ${OTX_SLOW_DOWN_MONITOR}."
+          sed -i -e "s;\(^slowDownMonitor=\).*$;\1${OTX_SLOW_DOWN_MONITOR};g" ${INSTANCE_ROOT}/config/diagnostic.properties
+        fi
+
+        if [ -n "${OTX_MEMORY_MONITOR}" ]; then
+          log "INFO memoryMonitor is ${OTX_MEMORY_MONITOR}."
+          sed -i -e "s;\(^memoryMonitor=\).*$;\1${OTX_MEMORY_MONITOR};g" ${INSTANCE_ROOT}/config/diagnostic.properties
+        fi
+      fi
+    fi
+    ## end Setting diagnostic
 
     ## start domain
     if [ -e /opt/WebOTX/bin/otxadmin ]; then

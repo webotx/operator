@@ -1,8 +1,8 @@
 # Vendor: NEC Corporation.
 # Product: WebOTX Operator for Kubernetes
-# Version: 11.10.00.00
+# Version: 11.20.00.00
 # 
-apiVersion: webotx.nec.com/v3
+apiVersion: webotx.nec.com/v4
 kind: ApplicationServer
 metadata:
   # Replace this with the ApplicationServer Object name
@@ -119,6 +119,21 @@ spec:
       # optional
       useAllProcessGroups: false
 
+    # Performance Analyzer related settings
+    # optional
+    performanceAnalyzer:
+      # Set the fault verification time.
+      # optional
+      faultVerificationTime: REPLACE_FAULT_VERIFICATION_TIME
+
+      # Set to enable slow down monitor.
+      # optional
+      slowDownMonitor: true
+
+      # Set to enable memory monitor.
+      # optional
+      memoryMonitor: true
+
     # File Mounts related settings
     # optional
     fileMounts:
@@ -133,6 +148,12 @@ spec:
       - name: REPLACE_SECRET_NAME
         key: REPLACE_SECRET_KEY
         path: REPLACE_ABSOLUTE_PATH
+
+    # Replacement related settings
+    # optional
+    replacement:
+      # Set the persistent volume claim name.
+      persistentVolumeClaimName: REPLACE_PERSISTENT_VOLUME_CLAIM_NAME
 
   # Common settings
   common:
@@ -395,3 +416,61 @@ spec:
     # to node-local or cluster-wide endpoints.
     # optional
     externalTrafficPolicy: REPLACE_EXTERNAL_TRAFFIC_POLICY
+
+  # HorizontalPodAutoscaler manifest definition settings
+  # optional
+  horizontalPodAutoscaler:
+    # Set to enable HorizontalPodAutoscaler.
+    # optional
+    enabled: false
+
+    # Set the max replicas.
+    # optional
+    maxReplicas: REPLACE_MAX_REPLICAS
+
+    # Set the min replicas.
+    # optional
+    minReplicas: REPLACE_MIN_REPLICAS
+
+    # Setting items related to resource metrics.
+    # optional
+    resourceMetrics:
+      # Set the cpu average utilization.
+      # optional
+      cpuAverageUtilization: REPLACE_CPU_AVERAGE_UTILIZATION
+
+      # Set the cpu average value.
+      # optional
+      cpuAverageValue: REPLACE_CPU_AVERAGE_VALUE
+
+      # Set the memory average utilization.
+      # optional
+      memoryAverageUtilization: REPLACE_MEMORY_AVERAGE_UTILIZATION
+
+      # Set the memory average value.
+      # optional
+      memoryAverageValue: REPLACE_MEMORY_AVERAGE_VALUE
+
+    # Setting items related to pod metrics.
+    # optional
+    podMetrics:
+    - name: REPLACE_POD_METRIC_NAME
+      averageValue: REPLACE_POD_METRIC_AVERAGE_VALUE
+
+    # Set the behavior.
+    # optional
+    behavior:
+      scaleUp:
+        policies:
+        - type: REPLACE_POLICY_TYPE
+          value: REPLACE_POLICY_VALUE
+          periodSeconds: REPLACE_POLICY_PERIOD_SECONDS
+        selectPolicy: REPLACE_SELECT_POLICY
+        stabilizationWindowSeconds: REPLACE_STABILIZATION_WINDOW_SECONDS
+      scaleDown:
+        policies:
+        - type: REPLACE_POLICY_TYPE
+          value: REPLACE_POLICY_VALUE
+          periodSeconds: REPLACE_POLICY_PERIOD_SECONDS
+        selectPolicy: REPLACE_SELECT_POLICY
+        stabilizationWindowSeconds: REPLACE_STABILIZATION_WINDOW_SECONDS

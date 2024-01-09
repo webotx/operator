@@ -1,8 +1,8 @@
 # Vendor: NEC Corporation.
 # Product: WebOTX Operator for Kubernetes
-# Version: 11.10.00.00
+# Version: 11.20.00.00
 # 
-apiVersion: webotx.nec.com/v3
+apiVersion: webotx.nec.com/v4
 kind: ApplicationServer
 metadata:
   # Replace this with the ApplicationServer Object name
